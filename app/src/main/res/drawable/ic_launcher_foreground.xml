@@ -3,20 +3,38 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A rising line over a baseline: the shape of the one question the app answers.
-         Kept inside the 72dp adaptive-icon safe zone. -->
-    <path
-        android:strokeColor="#3D7A73"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:pathData="M31,79 L77,79" />
+    <!--
+      Converge: two records meeting at a point.
+
+      The solid stroke is your own ledger, the broken one the bank's, resolving into a single
+      filled dot. It reuses the solid-versus-dashed language the charts already use for recorded
+      versus projected, so the icon and the app speak the same way.
+
+      Geometry sits inside the 72dp adaptive-icon safe zone (18..90): the mark spans x 21.5..89
+      and y 21.5..86.5, so no part of it is cropped by a round, squircle or squared launcher mask.
+      A vector drawable has no stroke-dash support, so the broken line is drawn as three segments.
+    -->
     <path
         android:strokeColor="#5EEAD4"
-        android:strokeWidth="7"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M31,66 L46,51 L59,58 L77,34" />
+        android:pathData="M26,26 L64.8,46.9" />
+    <path
+        android:strokeColor="#3D7A73"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:pathData="M26,82 L36.1,76.6" />
+    <path
+        android:strokeColor="#3D7A73"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:pathData="M40.4,74.3 L50.4,68.8" />
+    <path
+        android:strokeColor="#3D7A73"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:pathData="M54.7,66.5 L64.8,61.1" />
     <path
         android:fillColor="#5EEAD4"
-        android:pathData="M77,27 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:pathData="M78,54 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
 </vector>

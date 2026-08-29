@@ -4,7 +4,27 @@
     android:viewportWidth="24"
     android:viewportHeight="24"
     android:tint="#FFFFFFFF">
+    <!--
+      The launcher mark reduced for the status bar, which renders only the alpha channel as a
+      flat silhouette. One dash is dropped and the strokes thickened proportionally, because at
+      24dp three segments merge into a line and the idea is lost either way.
+    -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:pathData="M4.5,5.2 L13.9,10.2" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:pathData="M4.5,18.8 L8.4,16.7" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:pathData="M10.4,15.6 L13.9,13.8" />
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M4,14h3v6H4zM10.5,9h3v11h-3zM17,4h3v16h-3z" />
+        android:pathData="M17.6,12 m-2.7,0 a2.7,2.7 0 1,0 5.4,0 a2.7,2.7 0 1,0 -5.4,0" />
 </vector>
