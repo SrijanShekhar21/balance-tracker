@@ -29,6 +29,17 @@ object ReportEngine {
     /** Window for the spend trend chart. */
     private const val TREND_DAYS = 30
 
+    /** Days in the moving average drawn over the daily bars. */
+    private const val ROLLING_WINDOW = 7
+
+    /** Trailing mean of [window] days, ending at each point. */
+    private fun rollingMean(points: List<DayPoint>, window: Int): List<DayPoint> =
+        points.indices.map { i ->
+            val from = maxOf(0, i - window + 1)
+            val slice = points.subList(from, i + 1)
+            DayPoint(points[i].dayStart, slice.sumOf { it.spent } / slice.size)
+        }
+
     /**
      * Daily spend across [days] consecutive days from [from].
      *
@@ -101,6 +112,15 @@ object ReportEngine {
             if (burn > 0 && bal > 0) bal / burn else null
         }
 
+        // Fetched with six extra days of lead-in, so the rolling mean is a true seven-day
+        // window from the very first plotted point instead of starting on partial data.
+        val trendRaw = series(
+            repo,
+            Days.plusDays(dayStart, -(TREND_DAYS + ROLLING_WINDOW - 1) + 1),
+            TREND_DAYS + ROLLING_WINDOW - 1
+        )
+        val trendDaily = trendRaw.takeLast(TREND_DAYS)
+
         val report = DayReport(
             dayStart = dayStart,
             spent = spent,
@@ -127,7 +147,8 @@ object ReportEngine {
             daysInMonth = daysInMonth,
             flags = emptyList(),
             txns = today,
-            trend = series(repo, Days.plusDays(dayStart, -TREND_DAYS + 1), TREND_DAYS),
+            trend = trendDaily,
+            trendAvg = rollingMean(trendRaw, ROLLING_WINDOW).takeLast(TREND_DAYS),
             monthSeries = series(repo, monthStart, daysElapsed)
         )
 

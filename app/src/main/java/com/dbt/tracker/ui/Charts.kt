@@ -25,8 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -63,16 +64,20 @@ private val dayShort = SimpleDateFormat("d MMM", Locale.ENGLISH)
 private val dayLong = SimpleDateFormat("EEE, d MMM", Locale.ENGLISH)
 
 /**
- * Daily spend over the trailing month.
+ * Each day's spend as a bar, with the trailing seven-day mean drawn over it.
  *
- * Touch anywhere on the plot to read a specific day; dragging scrubs across the series. The
- * readout sits above the chart rather than floating over it, because a tooltip under a fingertip
- * on a phone is covered by the finger reading it.
+ * The two are told apart by form -- filled bar against stroked line -- rather than by a second
+ * hue, so the pairing survives colour blindness and greyscale, and no second colour has to earn
+ * its place on the chart.
+ *
+ * The mean is drawn as a moving line rather than one flat reference, because a flat average
+ * answers "how does today compare with the whole month" while a moving one answers "how does
+ * today compare with how I have been living lately", which is the question worth asking.
  */
 @Composable
 fun SpendTrendChart(
     points: List<DayPoint>,
-    average: Double,
+    rolling: List<DayPoint>,
     modifier: Modifier = Modifier
 ) {
     if (points.size < 2) {
@@ -81,21 +86,30 @@ fun SpendTrendChart(
     }
 
     var selected by remember(points) { mutableStateOf<Int?>(null) }
-    val measurer = rememberTextMeasurer()
-    val axisStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
     val surface = MaterialTheme.colorScheme.surface
     val crosshair = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val above = negativeColor()
 
-    val top = max(points.maxOf { it.spent }, average) * 1.18
-    val shown = selected?.let { points.getOrNull(it) } ?: points.last()
+    val top = max(points.maxOf { it.spent }, rolling.maxOfOrNull { it.spent } ?: 0.0) * 1.15
+    val i = selected ?: points.lastIndex
+    val day = points[i]
+    val mean = rolling.getOrNull(i)?.spent ?: 0.0
+    val delta = if (mean > 0) (day.spent - mean) / mean * 100 else null
 
     Column(modifier.fillMaxWidth()) {
         Readout(
-            label = if (selected == null) "Latest · ${dayLong.format(shown.dayStart)}"
-            else dayLong.format(shown.dayStart),
-            value = Money.rupees(shown.spent),
-            hint = if (selected == null) "Touch the chart to inspect a day" else null
+            label = if (selected == null) "Latest · ${dayLong.format(day.dayStart)}"
+            else dayLong.format(day.dayStart),
+            value = Money.rupees(day.spent),
+            hint = when {
+                delta == null -> null
+                day.spent == 0.0 -> "no spending"
+                delta > 5 -> "${delta.roundToInt()}% over your 7-day rate"
+                delta < -5 -> "${(-delta).roundToInt()}% under your 7-day rate"
+                else -> "on your 7-day rate"
+            },
+            muted = false
         )
 
         Canvas(
@@ -103,7 +117,6 @@ fun SpendTrendChart(
                 .fillMaxWidth()
                 .height(150.dp)
                 .padding(top = 16.dp, bottom = 4.dp)
-                // Two recognisers: a tap to pick one day, a drag to sweep across days.
                 .pointerInput(points) {
                     detectTapGestures { off -> selected = indexAt(off.x, size.width, points.size) }
                 }
@@ -117,47 +130,54 @@ fun SpendTrendChart(
         ) {
             val w = size.width
             val h = size.height
-            fun x(i: Int) = w * i / (points.size - 1).toFloat()
+            val slot = w / points.size
+            // A 2px gap between bars, so adjacent days stay countable rather than reading as
+            // one block of colour.
+            val barW = (slot - 2.dp.toPx()).coerceAtLeast(1.5.dp.toPx())
+            fun cx(idx: Int) = slot * idx + slot / 2
             fun y(v: Double) = (h - (v / top * h)).toFloat().coerceIn(0f, h)
 
             drawLine(grid, Offset(0f, h), Offset(w, h), strokeWidth = 1f)
 
-            if (average > 0) {
-                val ay = y(average)
-                drawLine(
-                    grid, Offset(0f, ay), Offset(w, ay), strokeWidth = 1.5f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
-                )
-                val label = measurer.measure("avg ${Money.short(average)}", axisStyle)
-                drawText(label, topLeft = Offset(0f, (ay - label.size.height - 3).coerceAtLeast(0f)))
-            }
-
-            val line = Path()
-            val area = Path().apply { moveTo(0f, h) }
-            points.forEachIndexed { i, p ->
-                val px = x(i)
+            points.forEachIndexed { idx, p ->
+                if (p.spent <= 0) return@forEachIndexed
+                val over = (rolling.getOrNull(idx)?.spent ?: 0.0).let { it > 0 && p.spent > it }
                 val py = y(p.spent)
-                if (i == 0) line.moveTo(px, py) else line.lineTo(px, py)
-                area.lineTo(px, py)
+                drawRoundRect(
+                    color = if (over) above.copy(alpha = 0.45f) else SERIES.copy(alpha = 0.45f),
+                    topLeft = Offset(cx(idx) - barW / 2, py),
+                    size = Size(barW, h - py),
+                    cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                )
             }
-            area.lineTo(w, h)
-            area.close()
 
-            drawPath(area, Brush.verticalGradient(
-                listOf(SERIES.copy(alpha = 0.22f), SERIES.copy(alpha = 0f))
-            ))
-            drawPath(line, SERIES, style = Stroke(width = 2.dp.toPx()))
+            if (rolling.size == points.size) {
+                val line = Path()
+                rolling.forEachIndexed { idx, p ->
+                    val px = cx(idx)
+                    val py = y(p.spent)
+                    if (idx == 0) line.moveTo(px, py) else line.lineTo(px, py)
+                }
+                drawPath(line, SERIES, style = Stroke(width = 2.dp.toPx()))
+            }
 
-            selected?.let { i ->
-                val px = x(i)
+            selected?.let { idx ->
+                val px = cx(idx)
                 drawLine(crosshair, Offset(px, 0f), Offset(px, h), strokeWidth = 1.dp.toPx())
-                marker(px, y(points[i].spent), surface, emphasised = true)
-            } ?: marker(x(points.size - 1), y(points.last().spent), surface)
+                rolling.getOrNull(idx)?.let { marker(px, y(it.spent), surface, emphasised = true) }
+            }
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             AxisLabel(dayShort.format(points.first().dayStart))
             AxisLabel(dayShort.format(points.last().dayStart))
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LegendSwatch("Spent that day", bar = true, color = SERIES)
+            LegendSwatch("Over your rate", bar = true, color = above)
+            LegendKey("7-day average", dashed = false)
         }
     }
 }
@@ -334,6 +354,25 @@ private fun AxisLabel(text: String) {
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+/** A filled chip for bar series, so form carries identity alongside the line keys. */
+@Composable
+private fun LegendSwatch(label: String, bar: Boolean, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(width = 10.dp, height = 10.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color.copy(alpha = if (bar) 0.45f else 1f))
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 /** Identity by line pattern, so the two states stay distinguishable without a second hue. */

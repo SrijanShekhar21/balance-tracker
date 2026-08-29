@@ -69,8 +69,8 @@ fun HomeScreen(
         item { PaceCard(r) }
 
         item {
-            Panel("Spend over time", trailing = "last 30 days") {
-                SpendTrendChart(points = r.trend, average = r.avg30)
+            Panel("Daily spend vs your 7-day rate", trailing = "last 30 days") {
+                SpendTrendChart(points = r.trend, rolling = r.trendAvg)
             }
         }
 

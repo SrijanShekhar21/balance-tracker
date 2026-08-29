@@ -104,6 +104,13 @@ data class DayReport(
     val txns: List<Txn>,
     /** Daily spend for the 30 days ending on this report's day. */
     val trend: List<DayPoint> = emptyList(),
+    /**
+     * Trailing 7-day mean, one value per day of [trend] and aligned to it.
+     *
+     * A moving line rather than a single figure, so a day is judged against the habit of the
+     * week around it rather than against a month-long average that lags a change in behaviour.
+     */
+    val trendAvg: List<DayPoint> = emptyList(),
     /** Daily spend for each elapsed day of this month, for the cumulative view. */
     val monthSeries: List<DayPoint> = emptyList()
 )
