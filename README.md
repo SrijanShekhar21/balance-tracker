@@ -1,6 +1,7 @@
-# Hisaab
+# Recon
 
-*hisaab* — accounts, the reckoning of what was spent.
+Short for reconciliation: checking your own record of the money against the bank's.
+That is what importing a statement does, and why the numbers here can be trusted.
 
 An Android app that reads your downloaded bank statement and turns it into a spending report.
 
@@ -124,7 +125,7 @@ read, its date, its account, and anything added since. If it's tracking the wron
 it there.
 
 **No report arrived.** Android battery optimisation delays background work. Settings → Apps →
-Hisaab → Battery → **Unrestricted**.
+Recon → Battery → **Unrestricted**.
 
 ---
 
