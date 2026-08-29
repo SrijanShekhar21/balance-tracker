@@ -71,6 +71,8 @@ object ReportEngine {
         val mtd = repo.between(monthStart, dayEnd)
         val mtdSpent = mtd.filter { !it.isCredit }.sumOf { it.amount }
         val mtdCredited = mtd.filter { it.isCredit }.sumOf { it.amount }
+        val sipMtd = mtd.filter { !it.isCredit && it.category == Categories.INVEST }
+            .sumOf { it.amount }
 
         val daysElapsed = Days.dayOfMonth(dayStart)
         val daysInMonth = Days.daysInMonth(dayStart)
@@ -115,6 +117,7 @@ object ReportEngine {
             largest = debits.maxByOrNull { it.amount },
             mtdSpent = mtdSpent,
             mtdCredited = mtdCredited,
+            sipMtd = sipMtd,
             projectedMonthEnd = projected,
             monthlyBudget = prefs.monthlyBudget,
             budgetUsedPct = prefs.monthlyBudget?.let { if (it > 0) mtdSpent / it * 100 else null },

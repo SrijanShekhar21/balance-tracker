@@ -400,7 +400,19 @@ private fun MonthCard(r: DayReport) {
 
         Spacer(Modifier.height(12.dp))
         Text(
-            "${r.noSpendDaysThisMonth} no-spend day${if (r.noSpendDaysThisMonth == 1) "" else "s"} so far",
+            buildString {
+                append(r.noSpendDaysThisMonth)
+                append(" no-spend day")
+                if (r.noSpendDaysThisMonth != 1) append("s")
+                append(" so far")
+                // SIP is counted in the total above; naming it here separates the month into
+                // money consumed and money put away, which read very differently.
+                if (r.sipMtd > 0) {
+                    append("  ·  includes ")
+                    append(Money.rupees(r.sipMtd))
+                    append(" of SIP")
+                }
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

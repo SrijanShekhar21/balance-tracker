@@ -88,6 +88,11 @@ data class DayReport(
     val largest: Txn?,
     val mtdSpent: Double,
     val mtdCredited: Double,
+    /**
+     * The SIP portion of [mtdSpent]. Counted in the total, as intended, but reported
+     * separately so a month can be read as consumption plus saving rather than one figure.
+     */
+    val sipMtd: Double = 0.0,
     val projectedMonthEnd: Double,
     val monthlyBudget: Double?,
     val budgetUsedPct: Double?,

@@ -18,7 +18,7 @@ object Categories {
     const val HEALTH = "Health & Medical"
     const val EDUCATION = "Education"
     const val RENT = "Rent & Home"
-    const val INVEST = "Investments"
+    const val INVEST = "SIP"
     const val INSURANCE = "Insurance"
     const val CASH = "Cash Withdrawal"
     const val TRANSFER = "People & Transfers"
@@ -98,7 +98,8 @@ object Categories {
             "society", "maintenance", "apartment", "housing"
         )),
         CategoryDef(INVEST, 0xFF22C55E, listOf(
-            "zerodha", "groww", "upstox", "angel one", "angelone", "5paisa", "icici direct",
+            "zerodha", "groww", "nextbillion", "upstox", "angel one", "angelone", "5paisa",
+            "icici direct",
             "kuvera", "indmoney", "smallcase", "paytm money", "dhan ", "fyers",
             "mutual fund", "sip ", "nps ", "ppf", "sukanya", "recurring deposit",
             "fixed deposit", "term deposit", "gold bond", "sgb", "broking",

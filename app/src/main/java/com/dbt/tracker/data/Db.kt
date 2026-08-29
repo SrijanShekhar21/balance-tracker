@@ -77,11 +77,17 @@ class Db private constructor(context: Context) :
             db.execSQL("ALTER TABLE txn ADD COLUMN inferred_from TEXT")
             createSignalTable(db)
         }
+        if (oldVersion < 3) {
+            // "Investments" became "SIP". Categories are stored as text, so already-imported
+            // rows keep the old label unless it is rewritten here.
+            db.execSQL("UPDATE txn SET category = 'SIP' WHERE category = 'Investments'")
+            db.execSQL("UPDATE merchant_rule SET category = 'SIP' WHERE category = 'Investments'")
+        }
     }
 
     companion object {
         private const val NAME = "balance_tracker.db"
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         @Volatile
         private var instance: Db? = null
