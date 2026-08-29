@@ -1,4 +1,6 @@
-# Balance Tracker
+# Hisaab
+
+*hisaab* — accounts, the reckoning of what was spent.
 
 An Android app that reads your downloaded bank statement and turns it into a spending report.
 
@@ -122,7 +124,7 @@ read, its date, its account, and anything added since. If it's tracking the wron
 it there.
 
 **No report arrived.** Android battery optimisation delays background work. Settings → Apps →
-Balance Tracker → Battery → **Unrestricted**.
+Hisaab → Battery → **Unrestricted**.
 
 ---
 
