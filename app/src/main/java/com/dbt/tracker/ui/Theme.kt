@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -20,6 +21,7 @@ import com.dbt.tracker.R
  * around. Inter is drawn for screens at small sizes and, more usefully here, ships true
  * tabular figures.
  */
+@OptIn(ExperimentalTextApi::class)
 private fun inter(weight: Int) = Font(
     R.font.inter,
     FontWeight(weight),
