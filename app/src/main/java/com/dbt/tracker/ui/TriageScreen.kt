@@ -1,7 +1,6 @@
 package com.dbt.tracker.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.item
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -54,7 +52,7 @@ import com.dbt.tracker.util.Money
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
-    val items = vm.triage
+    val pending = vm.triage
     val selectedCount = vm.selected.size
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -68,11 +66,11 @@ fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
                         }
                     },
                     actions = {
-                        if (items.isNotEmpty()) {
+                        if (pending.isNotEmpty()) {
                             TextButton(onClick = {
-                                if (selectedCount == items.size) vm.clearSelection() else vm.selectAll()
+                                if (selectedCount == pending.size) vm.clearSelection() else vm.selectAll()
                             }) {
-                                Text(if (selectedCount == items.size) "None" else "All")
+                                Text(if (selectedCount == pending.size) "None" else "All")
                             }
                         }
                     }
@@ -82,7 +80,7 @@ fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
                 if (selectedCount > 0) AssignBar(vm, selectedCount)
             }
         ) { padding ->
-            if (items.isEmpty()) {
+            if (pending.isEmpty()) {
                 Box(
                     Modifier.fillMaxSize().padding(padding).padding(24.dp),
                     contentAlignment = Alignment.Center
@@ -103,7 +101,7 @@ fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
             ) {
                 item {
                     Text(
-                        "${items.size} payments could not be matched to a known merchant — " +
+                        "${pending.size} payments could not be matched to a known merchant — " +
                             "usually someone's personal UPI code. Tick the ones that belong " +
                             "together and assign them in one go.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -112,7 +110,7 @@ fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
                     )
                 }
 
-                items(items, key = { it.id }) { txn ->
+                items(pending, key = { it.id }) { txn ->
                     TriageRow(
                         txn = txn,
                         checked = txn.id in vm.selected,
