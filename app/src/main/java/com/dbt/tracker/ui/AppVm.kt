@@ -93,7 +93,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var merchantTxns by mutableStateOf<List<Txn>>(emptyList())
         private set
 
-    fun setSpendPeriod(p: SpendPeriod) {
+    fun selectPeriod(p: SpendPeriod) {
         spendPeriod = p
         collapseDrilldown()
         loadSpend()

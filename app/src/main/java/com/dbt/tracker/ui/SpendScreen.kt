@@ -126,7 +126,7 @@ private fun PeriodPicker(vm: AppVm) {
         SpendPeriod.entries.forEach { p ->
             FilterChip(
                 selected = vm.spendPeriod == p,
-                onClick = { vm.setSpendPeriod(p) },
+                onClick = { vm.selectPeriod(p) },
                 label = { Text(p.label, style = MaterialTheme.typography.labelMedium) }
             )
         }
