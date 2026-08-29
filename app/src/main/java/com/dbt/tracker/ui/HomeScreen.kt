@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -181,7 +181,7 @@ private fun TriageBanner(count: Int, onClick: () -> Unit) {
                 )
             }
             Icon(
-                Icons.Default.ChevronRight,
+                Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -198,7 +198,7 @@ private fun DayNavigator(vm: AppVm) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = { vm.shiftDay(-1) }) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
+            Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous day")
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -212,7 +212,7 @@ private fun DayNavigator(vm: AppVm) {
             )
         }
         IconButton(onClick = { vm.shiftDay(1) }, enabled = !isToday) {
-            Icon(Icons.Default.ChevronRight, contentDescription = "Next day")
+            Icon(Icons.Rounded.ChevronRight, contentDescription = "Next day")
         }
     }
 

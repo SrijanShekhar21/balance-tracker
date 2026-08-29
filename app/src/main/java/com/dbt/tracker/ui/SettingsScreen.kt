@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -267,14 +267,14 @@ private fun TimeStepper(hour: Int, minute: Int, onChange: (Int, Int) -> Unit) {
         IconButton(onClick = {
             val total = (hour * 60 + minute - 30 + 1440) % 1440
             onChange(total / 60, total % 60)
-        }) { Icon(Icons.Default.Remove, contentDescription = "Earlier") }
+        }) { Icon(Icons.Rounded.Remove, contentDescription = "Earlier") }
 
         Text("%02d:%02d".format(hour, minute), style = MaterialTheme.typography.bodyLarge)
 
         IconButton(onClick = {
             val total = (hour * 60 + minute + 30) % 1440
             onChange(total / 60, total % 60)
-        }) { Icon(Icons.Default.Add, contentDescription = "Later") }
+        }) { Icon(Icons.Rounded.Add, contentDescription = "Later") }
     }
 }
 

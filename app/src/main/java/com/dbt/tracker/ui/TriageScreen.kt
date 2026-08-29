@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,7 +62,7 @@ fun TriageScreen(vm: AppVm, onClose: () -> Unit) {
                     title = { Text("Needs a category") },
                     navigationIcon = {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Icon(Icons.Rounded.Close, contentDescription = "Close")
                         }
                     },
                     actions = {

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="dbt_bg">#FFF8FAFC</color>
+    <color name="dbt_bg">#FFF5F6F8</color>
     <style name="Theme.DBT" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/dbt_bg</item>
         <item name="android:statusBarColor">@color/dbt_bg</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
-    <color name="ic_launcher_background">#FF0F766E</color>
+    <color name="ic_launcher_background">#FF0B2B28</color>
 </resources>

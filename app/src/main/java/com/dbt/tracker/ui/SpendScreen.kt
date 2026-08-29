@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -192,7 +192,7 @@ private fun BucketRow(
                 fontWeight = FontWeight.SemiBold
             )
             Icon(
-                Icons.Default.ExpandMore,
+                Icons.Rounded.ExpandMore,
                 contentDescription = if (expanded) "Collapse" else "Expand",
                 modifier = Modifier.padding(start = 4.dp).rotate(arrow),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant

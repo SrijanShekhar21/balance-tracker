@@ -13,11 +13,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -72,10 +72,10 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    TODAY("Report", Icons.Default.Today),
-    SPEND("Spend", Icons.Default.PieChart),
-    LEDGER("Ledger", Icons.Default.ReceiptLong),
-    SETTINGS("Settings", Icons.Default.Settings)
+    TODAY("Report", Icons.Rounded.Today),
+    SPEND("Spend", Icons.Rounded.PieChart),
+    LEDGER("Ledger", Icons.Rounded.ReceiptLong),
+    SETTINGS("Settings", Icons.Rounded.Settings)
 }
 
 /** Window in which a second back press means "exit" rather than a stray tap. */
@@ -184,7 +184,7 @@ private fun Root() {
         floatingActionButton = {
             if (tab != Tab.SETTINGS) {
                 FloatingActionButton(onClick = { adding = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add a cash transaction")
+                    Icon(Icons.Rounded.Add, contentDescription = "Add a cash transaction")
                 }
             }
         },

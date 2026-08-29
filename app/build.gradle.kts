@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Supplied by CI. Android refuses to install an APK whose versionCode is not greater than
+// the installed one, so a fixed number meant every build had to be uninstalled first.
+val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toIntOrNull() ?: 0
+
+// Written by the workflow from a repository secret. Its absence is normal for a local build.
+val releaseKeystore = rootProject.file("release.p12")
+
 android {
     namespace = "com.dbt.tracker"
     compileSdk = 35
@@ -12,16 +19,33 @@ android {
         applicationId = "com.dbt.tracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 1000 + buildNumber
+        versionName = "3.0.${'$'}buildNumber"
+    }
+
+    signingConfigs {
+        create("release") {
+            // A stable key is what allows an install to upgrade rather than be rejected.
+            // The debug key cannot serve: CI generates a fresh one on every run, so each
+            // build looked like a different app to Android.
+            if (releaseKeystore.exists()) {
+                storeFile = releaseKeystore
+                storeType = "PKCS12"
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            // Signed with the debug key so the cloud build produces an installable APK
-            // without you having to manage a keystore. Fine for a personal, sideloaded app.
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (releaseKeystore.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

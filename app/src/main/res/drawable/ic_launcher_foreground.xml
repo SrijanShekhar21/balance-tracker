@@ -3,20 +3,20 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Ascending bars + trend line, kept inside the 72dp adaptive-icon safe zone. -->
+    <!-- A rising line over a baseline: the shape of the one question the app answers.
+         Kept inside the 72dp adaptive-icon safe zone. -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M34,60 h9 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2 z" />
+        android:strokeColor="#3D7A73"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M31,79 L77,79" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M49,50 h9 a2,2 0 0 1 2,2 v24 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-24 a2,2 0 0 1 2,-2 z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M64,40 h9 a2,2 0 0 1 2,2 v34 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-34 a2,2 0 0 1 2,-2 z" />
-    <path
-        android:strokeColor="#FF99F6E4"
-        android:strokeWidth="4"
+        android:strokeColor="#5EEAD4"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M33,44 L47,34 L61,39 L77,26" />
+        android:pathData="M31,66 L46,51 L59,58 L77,34" />
+    <path
+        android:fillColor="#5EEAD4"
+        android:pathData="M77,27 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
 </vector>
