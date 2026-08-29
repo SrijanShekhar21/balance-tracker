@@ -1,6 +1,7 @@
 package com.dbt.tracker.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,7 +18,7 @@ import com.dbt.tracker.data.Txn
 import com.dbt.tracker.report.Notifications
 import com.dbt.tracker.report.ReportEngine
 import com.dbt.tracker.report.ReportScheduler
-import com.dbt.tracker.sms.Ingest
+import com.dbt.tracker.statement.StatementImporter
 import com.dbt.tracker.util.Days
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,10 +30,7 @@ data class SettingsState(
     val largeTxn: Double?,
     val reportHour: Int,
     val reportMinute: Int,
-    val backfillDays: Int,
-    val includeAllSenders: Boolean,
-    val liveAlerts: Boolean,
-    val openingBalance: Double?
+    val liveAlerts: Boolean
 )
 
 class AppVm(app: Application) : AndroidViewModel(app) {
@@ -62,12 +60,20 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var diagnostics by mutableStateOf<BalanceDiag?>(null)
         private set
 
+    /** Last day any imported statement covers. Everything after it is simply unknown. */
+    var coveredUntil by mutableStateOf<Long?>(null)
+        private set
+
+    /** Result of the most recent import, kept so warnings stay on screen to be read. */
+    var lastImport by mutableStateOf<StatementImporter.Outcome?>(null)
+
     private data class Loaded(
         val report: DayReport,
         val txns: List<Txn>,
         val count: Int,
         val triage: List<Txn>,
-        val diag: BalanceDiag
+        val diag: BalanceDiag,
+        val covered: Long?
     )
 
     fun refresh() {
@@ -78,7 +84,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
                     txns = repo.recent(500),
                     count = repo.count(),
                     triage = repo.needsTriage(Days.plusDays(Days.todayStart(), -TRIAGE_WINDOW_DAYS)),
-                    diag = repo.balanceDiagnostics(prefs)
+                    diag = repo.balanceDiagnostics(prefs),
+                    covered = repo.lastStatementDay()
                 )
             }
             report = data.report
@@ -86,8 +93,38 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             txnCount = data.count
             triage = data.triage
             diagnostics = data.diag
-            // Drop ticks for anything that has since been categorised elsewhere.
+            coveredUntil = data.covered
             selected = selected intersect data.triage.map { it.id }.toSet()
+        }
+    }
+
+    // ------------------------------------------------------------------ import
+
+    /**
+     * Reads a statement the user picked. Overlapping periods are replaced rather than added to,
+     * so importing the current month repeatedly through the month is the intended way to use it.
+     */
+    fun importStatement(uri: Uri) {
+        if (busy) return
+        busy = true
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                StatementImporter.import(getApplication(), uri)
+            }
+            busy = false
+            lastImport = outcome
+            message = when {
+                !outcome.ok -> outcome.error ?: "Could not import that file"
+                outcome.replaced > 0 ->
+                    "${outcome.imported} transactions imported, replacing ${outcome.replaced} from before"
+                else -> "${outcome.imported} transactions imported"
+            }
+            if (outcome.ok) {
+                // Jump to the newest day the statement covers, so the screen is not blank when
+                // the statement ends before today.
+                viewDay = minOf(Days.startOfDay(outcome.toTs), Days.todayStart())
+            }
+            refresh()
         }
     }
 
@@ -117,57 +154,14 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ------------------------------------------------------------------ browsing
+
     fun showDay(dayStart: Long) {
-        // Never let the browser walk into days that have not happened yet.
         viewDay = minOf(dayStart, Days.todayStart())
         refresh()
     }
 
     fun shiftDay(days: Int) = showDay(Days.plusDays(viewDay, days))
-
-    /**
-     * Re-reads the SMS inbox. Safe to run repeatedly: already-recorded transactions are
-     * rejected by de-duplication, so this doubles as the fix for anything missed while the
-     * app was uninstalled or permissions were off.
-     */
-    fun rescan() {
-        if (busy) return
-        busy = true
-        viewModelScope.launch {
-            val added = withContext(Dispatchers.IO) {
-                Ingest.backfill(getApplication(), prefs.backfillDays)
-            }
-            prefs.backfillDone = true
-            busy = false
-            message = if (added > 0) "Imported $added new transactions" else "No new transactions found"
-            refresh()
-        }
-    }
-
-    /**
-     * Deletes everything and re-reads the inbox. This is the only way a parsing fix reaches
-     * transactions that were already stored, so it is what repairs a wrong balance.
-     */
-    fun rebuild() {
-        if (busy) return
-        busy = true
-        viewModelScope.launch {
-            val added = withContext(Dispatchers.IO) {
-                repo.clearTransactions()
-                Ingest.backfill(getApplication(), prefs.backfillDays)
-            }
-            busy = false
-            message = "Rebuilt from ${'$'}added messages"
-            refresh()
-        }
-    }
-
-    fun setPrimaryAccount(account: String) {
-        prefs.primaryAccount = account
-        message = if (account.isBlank()) "Tracking whichever account is most active"
-                  else "Balance now tracks account ${'$'}account"
-        refresh()
-    }
 
     fun setCategory(txn: Txn, category: String, remember: Boolean) {
         viewModelScope.launch {
@@ -185,7 +179,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Cash spends never appear in SMS, so they have to be entered by hand. */
+    /** Cash never reaches a bank statement, so it has to be entered by hand. */
     fun addManual(amount: Double, merchant: String, category: String, isCredit: Boolean, ts: Long) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
@@ -217,6 +211,22 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun clearEverything() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { repo.clearTransactions() }
+            lastImport = null
+            message = "All transactions removed"
+            refresh()
+        }
+    }
+
+    fun setPrimaryAccount(account: String) {
+        prefs.primaryAccount = account
+        message = if (account.isBlank()) "Tracking whichever account is most active"
+        else "Balance now tracks account $account"
+        refresh()
+    }
+
     // ------------------------------------------------------------------ settings
 
     private fun readSettings() = SettingsState(
@@ -225,10 +235,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         largeTxn = prefs.largeTxnThreshold,
         reportHour = prefs.reportHour,
         reportMinute = prefs.reportMinute,
-        backfillDays = prefs.backfillDays,
-        includeAllSenders = prefs.includeAllSenders,
-        liveAlerts = prefs.liveAlerts,
-        openingBalance = prefs.openingBalance
+        liveAlerts = prefs.liveAlerts
     )
 
     fun updateSettings(block: Prefs.() -> Unit) {
@@ -238,19 +245,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
-    fun setOpeningBalance(amount: Double) {
-        prefs.setOpeningBalanceNow(amount)
-        settings = readSettings()
-        message = "Starting balance set"
-        refresh()
-    }
-
     val categories: List<String> get() = Categories.PICKABLE
-
-    /** On the very first launch with permission granted, import history without being asked. */
-    fun firstRunScanIfNeeded() {
-        if (!prefs.backfillDone) rescan()
-    }
 
     private companion object {
         /** Older spends are left alone; triage is about keeping recent data honest. */

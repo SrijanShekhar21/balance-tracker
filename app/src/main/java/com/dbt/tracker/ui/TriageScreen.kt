@@ -148,7 +148,7 @@ private fun TriageRow(txn: Txn, checked: Boolean, onToggle: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${Days.label(txn.ts)} at ${Days.time(txn.ts)} · ${txn.channel}",
+                    "${Days.label(txn.ts)} · ${txn.channel}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

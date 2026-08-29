@@ -13,21 +13,16 @@ class Repo(context: Context) {
     /**
      * Inserts a transaction unless it is already recorded.
      *
-     * Two guards run. A UNIQUE index over the bank reference number catches the same message
-     * being read twice, and [isLikelyDuplicate] catches the same payment being described twice
-     * by different senders, which the reference number cannot.
+     * Statement rows pass a null dedupe key, so the UNIQUE index ignores them: duplicates are
+     * prevented structurally instead, by [replaceRange] clearing the period before it is
+     * rewritten. This matters because statements carry a date but no clock time, so two genuine
+     * payments of the same amount on the same day are indistinguishable by value alone.
      *
      * @return true if a new row was written.
      */
     fun insert(txn: Txn): Boolean {
         val key = txn.refNo?.takeIf { it.isNotBlank() }
             ?.let { "${if (txn.isCredit) "C" else "D"}:$it:${"%.2f".format(txn.amount)}" }
-
-        // Runs even when a reference number is present. One UPI payment is announced by both
-        // the bank and the wallet app, and the two messages carry different reference numbers
-        // and different payee names -- so the reference index alone cannot catch the copy, and
-        // every such payment would otherwise be counted twice.
-        if (txn.source == Source.SMS && isLikelyDuplicate(txn)) return false
 
         val values = ContentValues().apply {
             put("ts", txn.ts)
@@ -53,32 +48,6 @@ class Repo(context: Context) {
     }
 
     /**
-     * Treats the same amount moving the same way within three minutes as one transaction.
-     *
-     * Merchant and reference number are deliberately not compared. Two descriptions of a single
-     * payment rarely agree on either, so matching on them is what allowed duplicates through.
-     * The cost of this looseness is that two genuinely separate payments of an identical amount
-     * within three minutes collapse into one; the benefit is that the balance stops drifting
-     * downwards, which is the far more common and more damaging error.
-     *
-     * Manually entered cash is exempt, so it can be recorded alongside a similar card payment.
-     */
-    private fun isLikelyDuplicate(txn: Txn): Boolean {
-        db.readableDatabase.rawQuery(
-            """
-            SELECT COUNT(*) FROM txn
-            WHERE amount = ? AND is_credit = ? AND source = ? AND ABS(ts - ?) <= 180000
-            """.trimIndent(),
-            arrayOf(
-                txn.amount.toString(),
-                (if (txn.isCredit) 1 else 0).toString(),
-                Source.SMS,
-                txn.ts.toString()
-            )
-        ).use { c -> return c.moveToFirst() && c.getInt(0) > 0 }
-    }
-
-    /**
      * Wipes recorded transactions so they can be re-read from the inbox.
      *
      * Learned merchant rules survive, since they represent decisions the user made rather than
@@ -89,6 +58,42 @@ class Repo(context: Context) {
         db.writableDatabase.execSQL("DELETE FROM txn")
         db.writableDatabase.execSQL("DELETE FROM signal")
     }
+
+    /**
+     * Rewrites one period from an imported statement: everything previously imported inside
+     * [fromTs, toTs] is dropped and replaced.
+     *
+     * This is what makes re-importing safe. Upload the same month twice, or a longer range that
+     * overlaps an earlier upload, and the result is the same either way -- so a statement can be
+     * re-pulled at any time to correct whatever came before.
+     *
+     * Manually entered cash inside the period is preserved, since no statement can contain it.
+     *
+     * @return number of rows removed, and number written
+     */
+    fun replaceRange(fromTs: Long, toTs: Long, txns: List<Txn>): Pair<Int, Int> {
+        val w = db.writableDatabase
+        w.beginTransaction()
+        try {
+            val removed = w.delete(
+                "txn",
+                "ts >= ? AND ts <= ? AND source = ?",
+                arrayOf(fromTs.toString(), toTs.toString(), Source.STATEMENT)
+            )
+            var written = 0
+            txns.forEach { if (insert(it)) written++ }
+            w.setTransactionSuccessful()
+            return removed to written
+        } finally {
+            w.endTransaction()
+        }
+    }
+
+    /** Latest day covered by an imported statement, so the UI can say how current the data is. */
+    fun lastStatementDay(): Long? = one(
+        "SELECT MAX(ts) FROM txn WHERE source = ?",
+        arrayOf(Source.STATEMENT)
+    ) { if (it.isNull(0)) null else it.getLong(0) }
 
     fun delete(id: Long) {
         db.writableDatabase.delete("txn", "id = ?", arrayOf(id.toString()))
@@ -373,7 +378,7 @@ class Repo(context: Context) {
         balanceAfter = getColumnIndexOrThrow("balance_after").let { if (isNull(it)) null else getDouble(it) },
         refNo = getString(getColumnIndexOrThrow("ref_no")),
         channel = getString(getColumnIndexOrThrow("channel")) ?: Channel.OTHER,
-        source = getString(getColumnIndexOrThrow("source")) ?: Source.SMS,
+        source = getString(getColumnIndexOrThrow("source")) ?: Source.STATEMENT,
         raw = getString(getColumnIndexOrThrow("raw")) ?: "",
         inferredFrom = getString(getColumnIndexOrThrow("inferred_from"))
     )

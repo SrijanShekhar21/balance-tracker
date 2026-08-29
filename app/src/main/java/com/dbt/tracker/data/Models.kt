@@ -13,7 +13,7 @@ data class Txn(
     val balanceAfter: Double? = null,
     val refNo: String? = null,
     val channel: String = Channel.OTHER,
-    val source: String = Source.SMS,
+    val source: String = Source.STATEMENT,
     val raw: String = "",
     /**
      * Set when the category could not be read from the payee and was instead deduced from a
@@ -64,7 +64,10 @@ object Channel {
 }
 
 object Source {
-    const val SMS = "SMS"
+    /** Imported from a downloaded bank statement. Authoritative. */
+    const val STATEMENT = "Statement"
+
+    /** Typed in by hand, for cash that never touched the account. */
     const val MANUAL = "Manual"
 }
 

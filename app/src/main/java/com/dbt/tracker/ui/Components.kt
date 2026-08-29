@@ -27,9 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dbt.tracker.data.Categories
+import com.dbt.tracker.data.Channel
 import com.dbt.tracker.data.CategorySlice
 import com.dbt.tracker.data.Flag
 import com.dbt.tracker.data.Severity
+import com.dbt.tracker.data.Source
 import com.dbt.tracker.data.Txn
 import com.dbt.tracker.util.Days
 import com.dbt.tracker.util.Money
@@ -233,9 +235,11 @@ fun TxnRow(txn: Txn, onClick: () -> Unit, showDate: Boolean = false) {
             Text(
                 buildString {
                     append(txn.category)
-                    append(" · ")
-                    if (showDate) append(Days.label(txn.ts)).append(" ")
-                    append(Days.time(txn.ts))
+                    if (showDate) append(" · ").append(Days.label(txn.ts))
+                    // A statement gives a date but no clock time, so showing one would be a
+                    // fabrication; only hand-entered cash carries a real time.
+                    if (txn.source == Source.MANUAL) append(" · ").append(Days.time(txn.ts))
+                    if (txn.channel != Channel.OTHER) append(" · ").append(txn.channel)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

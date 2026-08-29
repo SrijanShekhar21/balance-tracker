@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dbt.tracker.data.Categories
-import com.dbt.tracker.data.Source
 import com.dbt.tracker.data.Txn
 import com.dbt.tracker.util.Days
 import com.dbt.tracker.util.Money
@@ -67,21 +66,11 @@ fun TxnEditSheet(vm: AppVm, txn: Txn, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                "${Days.label(txn.ts)} at ${Days.time(txn.ts)} · ${txn.channel}" +
+                "${Days.label(txn.ts)} · ${txn.channel}" +
                     (if (txn.account.isNotBlank()) " · A/c ${txn.account}" else ""),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            txn.inferredFrom?.let { app ->
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Category worked out from a $app message that arrived around the same " +
-                        "time — the payee itself was not recognisable.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
 
             Spacer(Modifier.height(20.dp))
             Text("Category", style = MaterialTheme.typography.labelMedium)
@@ -134,12 +123,12 @@ fun TxnEditSheet(vm: AppVm, txn: Txn, onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Delete this transaction") }
 
-            if (txn.source == Source.SMS && txn.raw.isNotBlank()) {
+            if (txn.raw.isNotBlank()) {
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Original message",
+                    "Statement description",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

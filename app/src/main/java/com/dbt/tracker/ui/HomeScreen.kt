@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,7 +41,12 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
-fun HomeScreen(vm: AppVm, onTxnClick: (Txn) -> Unit, onTriage: () -> Unit) {
+fun HomeScreen(
+    vm: AppVm,
+    onTxnClick: (Txn) -> Unit,
+    onTriage: () -> Unit,
+    onImport: () -> Unit
+) {
     val r = vm.report
 
     LazyColumn(
@@ -50,7 +56,7 @@ fun HomeScreen(vm: AppVm, onTxnClick: (Txn) -> Unit, onTriage: () -> Unit) {
         item { DayNavigator(vm) }
 
         if (r == null || (r.txnCount == 0 && vm.txnCount == 0)) {
-            item { EmptyState(vm) }
+            item { EmptyState(onImport) }
             return@LazyColumn
         }
 
@@ -368,19 +374,19 @@ private fun MonthCard(r: DayReport) {
 }
 
 @Composable
-private fun EmptyState(vm: AppVm) {
+private fun EmptyState(onImport: () -> Unit) {
     Panel("Getting started") {
-        Text(
-            "No transactions recorded yet.",
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Text("No transactions yet.", style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Grant SMS access, then run a scan from Settings. The app reads the alerts SBI " +
-                "already sends you for every PhonePe, GPay and BHIM payment, and builds your " +
-                "history from them.",
+            "Download your account statement from SBI net banking as CSV or Excel, then import " +
+                "it. Every row carries its own closing balance, so nothing here is guessed.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Spacer(Modifier.height(14.dp))
+        Button(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+            Text("Import a statement")
+        }
     }
 }

@@ -7,14 +7,6 @@ class Prefs(context: Context) {
 
     private val sp = context.applicationContext.getSharedPreferences("dbt", Context.MODE_PRIVATE)
 
-    var onboarded: Boolean
-        get() = sp.getBoolean("onboarded", false)
-        set(v) = sp.edit().putBoolean("onboarded", v).apply()
-
-    var backfillDone: Boolean
-        get() = sp.getBoolean("backfill_done", false)
-        set(v) = sp.edit().putBoolean("backfill_done", v).apply()
-
     var monthlyBudget: Double?
         get() = sp.getFloat("monthly_budget", -1f).takeIf { it >= 0f }?.toDouble()
         set(v) = sp.edit().putFloat("monthly_budget", v?.toFloat() ?: -1f).apply()
@@ -28,7 +20,10 @@ class Prefs(context: Context) {
         get() = sp.getFloat("large_txn", -1f).takeIf { it >= 0f }?.toDouble()
         set(v) = sp.edit().putFloat("large_txn", v?.toFloat() ?: -1f).apply()
 
-    /** Manual starting balance, used only until the bank stamps a real one on an SMS. */
+    /**
+     * Manual starting balance. Only consulted when no imported statement has supplied a real
+     * closing balance, which after the first successful import is never.
+     */
     var openingBalance: Double?
         get() = sp.getFloat("opening_balance", -1f).takeIf { it >= 0f }?.toDouble()
         set(v) = sp.edit().putFloat("opening_balance", v?.toFloat() ?: -1f).apply()
@@ -45,23 +40,7 @@ class Prefs(context: Context) {
         get() = sp.getInt("report_minute", 0)
         set(v) = sp.edit().putInt("report_minute", v).apply()
 
-    /** How far back the first inbox scan reaches, in days. */
-    var backfillDays: Int
-        get() = sp.getInt("backfill_days", 120)
-        set(v) = sp.edit().putInt("backfill_days", v).apply()
-
-    /**
-     * Also parse alerts from wallets and other banks.
-     *
-     * Off by default. Every UPI payment is already reported by the bank, so wallet messages
-     * add no new transactions -- only second copies of ones already recorded, under a
-     * different reference number and payee name.
-     */
-    var includeAllSenders: Boolean
-        get() = sp.getBoolean("all_senders", false)
-        set(v) = sp.edit().putBoolean("all_senders", v).apply()
-
-    /** Notify on every transaction as it lands, not just the nightly summary. */
+    /** Post a notification per transaction as it is imported, not just the nightly summary. */
     var liveAlerts: Boolean
         get() = sp.getBoolean("live_alerts", false)
         set(v) = sp.edit().putBoolean("live_alerts", v).apply()

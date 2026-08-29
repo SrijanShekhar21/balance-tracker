@@ -1,12 +1,11 @@
 package com.dbt.tracker
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -37,8 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dbt.tracker.data.Txn
 import com.dbt.tracker.ui.AddTxnSheet
@@ -67,49 +64,42 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    TODAY("Today", Icons.Default.Today),
+    TODAY("Report", Icons.Default.Today),
     LEDGER("Ledger", Icons.Default.ReceiptLong),
     SETTINGS("Settings", Icons.Default.Settings)
 }
 
-private val REQUIRED = buildList {
-    add(Manifest.permission.READ_SMS)
-    add(Manifest.permission.RECEIVE_SMS)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        add(Manifest.permission.POST_NOTIFICATIONS)
-    }
-}.toTypedArray()
+/**
+ * Bank exports carry unreliable MIME types -- the same file arrives as text/plain, as
+ * application/octet-stream, or as a vendor Excel type depending on where it was downloaded --
+ * so the picker stays open and the file's own leading bytes decide how it is read.
+ */
+private val PICKER_TYPES = arrayOf("*/*")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Root() {
-    val context = LocalContext.current
     val vm: AppVm = viewModel()
 
     var tab by remember { mutableStateOf(Tab.TODAY) }
     var editing by remember { mutableStateOf<Txn?>(null) }
     var adding by remember { mutableStateOf(false) }
     var triaging by remember { mutableStateOf(false) }
-    var hasSms by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
-                PackageManager.PERMISSION_GRANTED
-        )
-    }
 
     val snackbar = remember { SnackbarHostState() }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted ->
-        hasSms = granted[Manifest.permission.READ_SMS] == true
-        if (hasSms) vm.firstRunScanIfNeeded()
-    }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { vm.importStatement(it) } }
 
-    // Asking on first open rather than behind a button: the app shows nothing at all
-    // until SMS access exists, so there is no useful state to demonstrate first.
+    val notifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     LaunchedEffect(Unit) {
-        if (!hasSms) permissionLauncher.launch(REQUIRED) else vm.firstRunScanIfNeeded()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         vm.refresh()
     }
 
@@ -163,13 +153,13 @@ private fun Root() {
                 Tab.TODAY -> HomeScreen(
                     vm = vm,
                     onTxnClick = { editing = it },
-                    onTriage = { triaging = true }
+                    onTriage = { triaging = true },
+                    onImport = { picker.launch(PICKER_TYPES) }
                 )
                 Tab.LEDGER -> TxnScreen(vm) { editing = it }
                 Tab.SETTINGS -> SettingsScreen(
                     vm = vm,
-                    hasSmsPermission = hasSms,
-                    onRequestPermission = { permissionLauncher.launch(REQUIRED) },
+                    onImport = { picker.launch(PICKER_TYPES) },
                     onTriage = { triaging = true }
                 )
             }

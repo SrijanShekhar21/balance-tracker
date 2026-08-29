@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -22,7 +21,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,12 +35,7 @@ import com.dbt.tracker.util.Days
 import com.dbt.tracker.util.Money
 
 @Composable
-fun SettingsScreen(
-    vm: AppVm,
-    hasSmsPermission: Boolean,
-    onRequestPermission: () -> Unit,
-    onTriage: () -> Unit
-) {
+fun SettingsScreen(vm: AppVm, onImport: () -> Unit, onTriage: () -> Unit) {
     val s = vm.settings
 
     LazyColumn(
@@ -50,43 +43,60 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Panel("Reading your SMS") {
-                if (!hasSmsPermission) {
-                    Text(
-                        "SMS access is off, so nothing is being tracked.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
-                        Text("Grant SMS access")
+            Panel("Bank statement") {
+                val covered = vm.coveredUntil
+                Text(
+                    if (covered == null) "No statement imported yet."
+                    else "Data covers everything up to ${Days.label(covered)}.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Download your statement from SBI net banking as CSV or Excel, then import " +
+                        "it here. Importing a period again replaces it rather than duplicating, " +
+                        "so you can re-import the current month as often as you like.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalButton(
+                        onClick = onImport,
+                        enabled = !vm.busy,
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (vm.busy) "Reading..." else "Import a statement") }
+                    if (vm.busy) {
+                        Spacer(Modifier.width(12.dp))
+                        CircularProgressIndicator(Modifier.height(20.dp).width(20.dp))
                     }
-                } else {
-                    Text(
-                        "Active. ${vm.txnCount} transactions recorded.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        FilledTonalButton(
-                            onClick = { vm.rescan() },
-                            enabled = !vm.busy,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(if (vm.busy) "Scanning..." else "Scan last ${s.backfillDays} days")
-                        }
-                        if (vm.busy) {
-                            Spacer(Modifier.width(12.dp))
-                            CircularProgressIndicator(Modifier.height(20.dp).width(20.dp))
-                        }
+                }
+
+                vm.lastImport?.let { r ->
+                    Spacer(Modifier.height(12.dp))
+                    if (r.ok) {
+                        Text(
+                            "Last import: ${r.imported} transactions, " +
+                                "${Days.label(r.fromTs)} to ${Days.label(r.toTs)}" +
+                                (if (r.replaced > 0) ", replacing ${r.replaced} earlier rows" else "") +
+                                (if (r.account.isNotBlank()) ", account ending ${r.account}" else ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Safe to run any time. Transactions already recorded are skipped, " +
-                            "so this only fills gaps.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Warnings show even on success: a statement that parsed but silently
+                    // skipped rows is exactly the case worth knowing about.
+                    r.warnings.forEach { w ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(w, style = MaterialTheme.typography.bodySmall, color = warnColor())
+                    }
+                    r.error?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
@@ -94,12 +104,10 @@ fun SettingsScreen(
         item {
             Panel("Categorisation") {
                 Text(
-                    if (vm.triage.isEmpty())
-                        "Every recent spend has a category."
-                    else
-                        "${vm.triage.size} recent payments went to personal UPI codes the app " +
-                            "could not place. Until they are sorted, your category breakdown " +
-                            "understates where the money actually went.",
+                    if (vm.triage.isEmpty()) "Every recent spend has a category."
+                    else "${vm.triage.size} payments went to payees the app could not place. " +
+                        "Until they are sorted, your category breakdown understates where the " +
+                        "money actually went.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -113,26 +121,67 @@ fun SettingsScreen(
         }
 
         item {
+            val d = vm.diagnostics
+            Panel("Balance workings", trailing = "why this number") {
+                if (d?.anchorBalance == null) {
+                    Text(
+                        "No balance yet. Import a statement and it is read straight from the " +
+                            "closing balance column.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    DiagLine("Statement closing balance", Money.rupees(d.anchorBalance, decimals = true))
+                    DiagLine("As of", Days.label(d.anchorTs ?: 0L))
+                    DiagLine("Account", "ending " + d.anchorAccount.orEmpty().ifBlank { "unknown" })
+                    DiagLine(
+                        "Added since",
+                        if (d.txnsSinceAnchor == 0) "nothing"
+                        else "${d.txnsSinceAnchor} entries, ${Money.signed(d.netSinceAnchor)}"
+                    )
+                }
+
+                if (d != null && d.accounts.size > 1) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("Accounts seen", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(6.dp))
+                    d.accounts.forEach { a ->
+                        val isPrimary = a.account == d.primaryAccount
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "ending ${a.account}" + if (isPrimary) "  ·  tracked" else "",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isPrimary) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "${a.txnCount} transactions",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (!isPrimary) {
+                                OutlinedButton(onClick = { vm.setPrimaryAccount(a.account) }) {
+                                    Text("Track")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             Panel("Nightly report") {
-                SettingRow(
-                    "Report time",
-                    "When the summary lands in your notifications"
-                ) {
+                SettingRow("Report time", "When the summary lands in your notifications") {
                     TimeStepper(
                         hour = s.reportHour,
                         minute = s.reportMinute,
-                        onChange = { h, m ->
-                            vm.updateSettings { reportHour = h; reportMinute = m }
-                        }
-                    )
-                }
-                SettingRow(
-                    "Alert on every payment",
-                    "A quiet notification as each transaction is recorded"
-                ) {
-                    Switch(
-                        checked = s.liveAlerts,
-                        onCheckedChange = { v -> vm.updateSettings { liveAlerts = v } }
+                        onChange = { h, m -> vm.updateSettings { reportHour = h; reportMinute = m } }
                     )
                 }
                 Spacer(Modifier.height(8.dp))
@@ -146,158 +195,22 @@ fun SettingsScreen(
         item {
             Panel("Limits and alerts") {
                 MoneyField(
-                    label = "Monthly budget",
-                    help = "Drives the budget bar and the overspend warning",
-                    value = s.monthlyBudget
+                    "Monthly budget",
+                    "Drives the budget bar and the overspend warning",
+                    s.monthlyBudget
                 ) { v -> vm.updateSettings { monthlyBudget = v } }
 
                 MoneyField(
-                    label = "Low balance alert",
-                    help = "Flags the day when your balance drops below this",
-                    value = s.lowBalance
+                    "Low balance alert",
+                    "Flags the day your balance drops below this",
+                    s.lowBalance
                 ) { v -> vm.updateSettings { lowBalanceThreshold = v } }
 
                 MoneyField(
-                    label = "Large payment alert",
-                    help = "Any single payment at or above this is called out",
-                    value = s.largeTxn
+                    "Large payment alert",
+                    "Any single payment at or above this is called out",
+                    s.largeTxn
                 ) { v -> vm.updateSettings { largeTxnThreshold = v } }
-            }
-        }
-
-        item {
-            val d = vm.diagnostics
-            Panel("Balance workings", trailing = "why this number") {
-                if (d == null || d.anchorBalance == null) {
-                    Text(
-                        "No balance has been read from your messages yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    DiagLine("Bank last said", Money.rupees(d.anchorBalance, decimals = true))
-                    DiagLine("On", Days.label(d.anchorTs ?: 0L) + " " + Days.time(d.anchorTs ?: 0L))
-                    DiagLine("For account", "ending " + d.anchorAccount.orEmpty().ifBlank { "unknown" })
-                    DiagLine("Since then", "${d.txnsSinceAnchor} txns, ${Money.signed(d.netSinceAnchor)}")
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "If the bank figure above is wrong or belongs to the wrong account, " +
-                            "pick the right account below. If it is right but the total is not, " +
-                            "the transactions since then are being miscounted — rebuild.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                if (d != null && d.accounts.isNotEmpty()) {
-                    Spacer(Modifier.height(14.dp))
-                    Text("Accounts seen", style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.height(6.dp))
-                    d.accounts.forEach { a ->
-                        val isPrimary = a.account == d.primaryAccount
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    "ending ${a.account}" + if (isPrimary) "  • tracked" else "",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (isPrimary) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    "${a.channel} · ${a.txnCount} txns · ${a.balanceSightings} with a balance",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (!isPrimary) {
-                                OutlinedButton(onClick = { vm.setPrimaryAccount(a.account) }) {
-                                    Text("Track")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-                OutlinedButton(
-                    onClick = { vm.rebuild() },
-                    enabled = !vm.busy,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(if (vm.busy) "Rebuilding..." else "Delete all and re-read my SMS") }
-                Text(
-                    "Parsing fixes only apply to messages read after the fix. A rebuild replays " +
-                        "your whole inbox through the current logic. Your category corrections " +
-                        "are kept.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-            }
-        }
-
-        item {
-            Panel("Balance") {
-                Text(
-                    "Your balance comes from the figure SBI stamps on its alerts. Until one " +
-                        "arrives, the app can work forward from a starting balance you enter here.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-                var opening by remember(s.openingBalance) {
-                    mutableStateOf(s.openingBalance?.toLong()?.toString() ?: "")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = opening,
-                        onValueChange = { opening = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Balance right now") },
-                        prefix = { Text("₹") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Button(
-                        onClick = { opening.toDoubleOrNull()?.let { vm.setOpeningBalance(it) } },
-                        enabled = opening.toDoubleOrNull() != null
-                    ) { Text("Set") }
-                }
-            }
-        }
-
-        item {
-            Panel("Scanning") {
-                SettingRow(
-                    "History depth",
-                    "How far back a scan reaches: ${s.backfillDays} days"
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            vm.updateSettings {
-                                backfillDays = (backfillDays - 30).coerceAtLeast(30)
-                            }
-                        }) { Icon(Icons.Default.Remove, contentDescription = "Less history") }
-                        Text("${s.backfillDays}d", style = MaterialTheme.typography.bodyMedium)
-                        IconButton(onClick = {
-                            vm.updateSettings {
-                                backfillDays = (backfillDays + 30).coerceAtMost(365)
-                            }
-                        }) { Icon(Icons.Default.Add, contentDescription = "More history") }
-                    }
-                }
-                SettingRow(
-                    "Include other banks and wallets",
-                    "Off means SBI messages only"
-                ) {
-                    Switch(
-                        checked = s.includeAllSenders,
-                        onCheckedChange = { v -> vm.updateSettings { includeAllSenders = v } }
-                    )
-                }
             }
         }
 
@@ -305,11 +218,16 @@ fun SettingsScreen(
             Panel("Your data") {
                 Text(
                     "Everything stays on this phone. The app has no internet permission at all, " +
-                        "so your transactions cannot be uploaded anywhere, by it or by anything " +
-                        "inside it.",
+                        "so your statement cannot be uploaded anywhere. It reads only the single " +
+                        "file you pick, and nothing else on your device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { vm.clearEverything() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Delete all transactions") }
             }
         }
 
@@ -336,15 +254,11 @@ private fun DiagLine(label: String, value: String) {
 private fun TimeStepper(hour: Int, minute: Int, onChange: (Int, Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = {
-            // Step back 30 minutes, wrapping through the day.
             val total = (hour * 60 + minute - 30 + 1440) % 1440
             onChange(total / 60, total % 60)
         }) { Icon(Icons.Default.Remove, contentDescription = "Earlier") }
 
-        Text(
-            "%02d:%02d".format(hour, minute),
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Text("%02d:%02d".format(hour, minute), style = MaterialTheme.typography.bodyLarge)
 
         IconButton(onClick = {
             val total = (hour * 60 + minute + 30) % 1440
