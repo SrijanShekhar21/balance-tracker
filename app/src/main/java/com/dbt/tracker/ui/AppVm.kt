@@ -13,11 +13,14 @@ import com.dbt.tracker.data.Channel
 import com.dbt.tracker.data.DayReport
 import com.dbt.tracker.data.Prefs
 import com.dbt.tracker.data.Repo
+import com.dbt.tracker.data.SpendPeriod
+import com.dbt.tracker.data.SpendView
 import com.dbt.tracker.data.Source
 import com.dbt.tracker.data.Txn
 import com.dbt.tracker.report.Notifications
 import com.dbt.tracker.report.ReportEngine
 import com.dbt.tracker.report.ReportScheduler
+import com.dbt.tracker.report.SpendAnalysis
 import com.dbt.tracker.statement.StatementImporter
 import com.dbt.tracker.util.Days
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +33,9 @@ data class SettingsState(
     val largeTxn: Double?,
     val reportHour: Int,
     val reportMinute: Int,
-    val liveAlerts: Boolean
+    val liveAlerts: Boolean,
+    val dailyReminder: Boolean,
+    val nextReportAt: Long?
 )
 
 class AppVm(app: Application) : AndroidViewModel(app) {
@@ -72,6 +77,62 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var passwordFailed by mutableStateOf(false)
         private set
     private var pendingUri: Uri? = null
+
+    // ------------------------------------------------------------------ spend tab
+
+    var spendPeriod by mutableStateOf(SpendPeriod.THIS_MONTH)
+        private set
+    var spendView by mutableStateOf<SpendView?>(null)
+        private set
+
+    /** Only one category is open at a time, so the page stays a summary rather than a dump. */
+    var expandedCategory by mutableStateOf<String?>(null)
+        private set
+    var expandedMerchant by mutableStateOf<String?>(null)
+        private set
+    var merchantTxns by mutableStateOf<List<Txn>>(emptyList())
+        private set
+
+    fun setSpendPeriod(p: SpendPeriod) {
+        spendPeriod = p
+        collapseDrilldown()
+        loadSpend()
+    }
+
+    fun toggleCategory(category: String) {
+        expandedCategory = if (expandedCategory == category) null else category
+        expandedMerchant = null
+        merchantTxns = emptyList()
+    }
+
+    fun showMerchant(category: String, merchant: String) {
+        if (expandedMerchant == merchant) {
+            expandedMerchant = null
+            merchantTxns = emptyList()
+            return
+        }
+        expandedMerchant = merchant
+        val view = spendView ?: return
+        viewModelScope.launch {
+            merchantTxns = withContext(Dispatchers.IO) {
+                repo.merchantTxns(view.fromTs, view.toTs, category, merchant)
+            }
+        }
+    }
+
+    private fun collapseDrilldown() {
+        expandedCategory = null
+        expandedMerchant = null
+        merchantTxns = emptyList()
+    }
+
+    private fun loadSpend() {
+        viewModelScope.launch {
+            spendView = withContext(Dispatchers.IO) {
+                SpendAnalysis.build(getApplication(), spendPeriod)
+            }
+        }
+    }
 
     /** Set when an imported statement had no balance column and none is on record. */
     var askingBalance by mutableStateOf(false)
@@ -118,6 +179,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             diagnostics = data.diag
             coveredUntil = data.covered
             selected = selected intersect data.triage.map { it.id }.toSet()
+            loadSpend()
         }
     }
 
@@ -297,7 +359,9 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         largeTxn = prefs.largeTxnThreshold,
         reportHour = prefs.reportHour,
         reportMinute = prefs.reportMinute,
-        liveAlerts = prefs.liveAlerts
+        liveAlerts = prefs.liveAlerts,
+        dailyReminder = prefs.dailyReminder,
+        nextReportAt = ReportScheduler.nextFireAt(getApplication())
     )
 
     fun updateSettings(block: Prefs.() -> Unit) {

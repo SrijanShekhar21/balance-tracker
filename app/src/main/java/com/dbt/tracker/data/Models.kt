@@ -110,6 +110,34 @@ data class CategorySlice(val category: String, val amount: Double, val count: In
 
 data class MerchantSlice(val merchant: String, val amount: Double, val count: Int)
 
+/** A category with the payees inside it, for the drill-down on the Spend tab. */
+data class Bucket(
+    val category: String,
+    val amount: Double,
+    val count: Int,
+    val share: Double,
+    val merchants: List<MerchantSlice>
+)
+
+/** Windows the Spend tab can be viewed over. */
+enum class SpendPeriod(val label: String) {
+    THIS_MONTH("This month"),
+    LAST_30("Last 30 days"),
+    LAST_MONTH("Last month"),
+    ALL("All time")
+}
+
+data class SpendView(
+    val period: SpendPeriod,
+    val fromTs: Long,
+    val toTs: Long,
+    val total: Double,
+    val received: Double,
+    val txnCount: Int,
+    val dailyAverage: Double,
+    val buckets: List<Bucket>
+)
+
 enum class Severity { INFO, WARN, CRITICAL }
 
 data class Flag(val severity: Severity, val title: String, val detail: String)

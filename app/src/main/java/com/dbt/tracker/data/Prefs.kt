@@ -40,6 +40,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("report_minute", 0)
         set(v) = sp.edit().putInt("report_minute", v).apply()
 
+    /** The nightly reminder to look at the day's spending. */
+    var dailyReminder: Boolean
+        get() = sp.getBoolean("daily_reminder", true)
+        set(v) = sp.edit().putBoolean("daily_reminder", v).apply()
+
     /** Post a notification per transaction as it is imported, not just the nightly summary. */
     var liveAlerts: Boolean
         get() = sp.getBoolean("live_alerts", false)

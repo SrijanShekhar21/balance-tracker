@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -177,6 +178,16 @@ fun SettingsScreen(vm: AppVm, onImport: () -> Unit, onTriage: () -> Unit) {
 
         item {
             Panel("Nightly report") {
+                SettingRow(
+                    "Daily reminder",
+                    s.nextReportAt?.let { "Next: ${Days.label(it)} at ${Days.time(it)}" }
+                        ?: "Off — no daily notification"
+                ) {
+                    Switch(
+                        checked = s.dailyReminder,
+                        onCheckedChange = { v -> vm.updateSettings { dailyReminder = v } }
+                    )
+                }
                 SettingRow("Report time", "When the summary lands in your notifications") {
                     TimeStepper(
                         hour = s.reportHour,

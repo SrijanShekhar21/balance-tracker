@@ -212,6 +212,16 @@ class Repo(context: Context) {
         arrayOf(limit.toString())
     )
 
+    /** The individual payments behind one payee, for the deepest level of the Spend tab. */
+    fun merchantTxns(fromTs: Long, toTs: Long, category: String, merchant: String): List<Txn> = query(
+        """
+        SELECT * FROM txn
+        WHERE ts >= ? AND ts < ? AND is_credit = 0 AND category = ? AND merchant = ?
+        ORDER BY ts DESC, id DESC
+        """.trimIndent(),
+        arrayOf(fromTs.toString(), toTs.toString(), category, merchant)
+    )
+
     fun count(): Int = one("SELECT COUNT(*) FROM txn", emptyArray()) { it.getInt(0) } ?: 0
 
     fun firstTs(): Long? = one("SELECT MIN(ts) FROM txn", emptyArray()) {

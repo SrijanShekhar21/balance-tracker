@@ -41,6 +41,10 @@ object ReportScheduler {
 
     fun scheduleNext(context: Context) {
         val prefs = Prefs(context)
+        if (!prefs.dailyReminder) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            return
+        }
         val delay = millisUntil(prefs.reportHour, prefs.reportMinute)
 
         val request = OneTimeWorkRequestBuilder<DailyReportWorker>()
@@ -50,6 +54,13 @@ object ReportScheduler {
 
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /** When the next report will fire, so the setting can state it rather than imply it. */
+    fun nextFireAt(context: Context): Long? {
+        val prefs = Prefs(context)
+        if (!prefs.dailyReminder) return null
+        return System.currentTimeMillis() + millisUntil(prefs.reportHour, prefs.reportMinute)
     }
 
     /** Milliseconds from now until the next occurrence of [hour]:[minute]. */

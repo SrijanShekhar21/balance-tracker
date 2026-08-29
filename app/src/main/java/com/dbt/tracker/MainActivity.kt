@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
@@ -33,10 +35,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.dbt.tracker.data.Txn
 import com.dbt.tracker.ui.AddTxnSheet
 import com.dbt.tracker.ui.AppTheme
@@ -45,6 +50,7 @@ import com.dbt.tracker.ui.BalanceDialog
 import com.dbt.tracker.ui.HomeScreen
 import com.dbt.tracker.ui.PasswordDialog
 import com.dbt.tracker.ui.SettingsScreen
+import com.dbt.tracker.ui.SpendScreen
 import com.dbt.tracker.ui.TriageScreen
 import com.dbt.tracker.ui.TxnEditSheet
 import com.dbt.tracker.ui.TxnScreen
@@ -67,9 +73,13 @@ class MainActivity : ComponentActivity() {
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     TODAY("Report", Icons.Default.Today),
+    SPEND("Spend", Icons.Default.PieChart),
     LEDGER("Ledger", Icons.Default.ReceiptLong),
     SETTINGS("Settings", Icons.Default.Settings)
 }
+
+/** Window in which a second back press means "exit" rather than a stray tap. */
+private const val EXIT_WINDOW_MS = 2000L
 
 /**
  * Bank exports carry unreliable MIME types -- the same file arrives as text/plain, as
@@ -87,8 +97,37 @@ private fun Root() {
     var editing by remember { mutableStateOf<Txn?>(null) }
     var adding by remember { mutableStateOf(false) }
     var triaging by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val snackbar = remember { SnackbarHostState() }
+    val activity = LocalContext.current as? android.app.Activity
+    var lastBackPress by remember { mutableStateOf(0L) }
+
+    // Back unwinds the app before it leaves it: an open sheet, then a sub-screen, then the
+    // way back to the report, and only then a confirmed exit. Losing a half-finished import
+    // to a stray back press would be worse than one extra tap.
+    BackHandler(enabled = true) {
+        when {
+            vm.askingPassword -> vm.cancelPassword()
+            vm.askingBalance -> vm.askingBalance = false
+            adding -> adding = false
+            editing != null -> editing = null
+            triaging -> triaging = false
+            tab != Tab.TODAY -> tab = Tab.TODAY
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPress < EXIT_WINDOW_MS) {
+                    activity?.finish()
+                } else {
+                    lastBackPress = now
+                    scope.launch {
+                        snackbar.currentSnackbarData?.dismiss()
+                        snackbar.showSnackbar("Press back again to exit")
+                    }
+                }
+            }
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -123,6 +162,7 @@ private fun Root() {
                 Text(
                     when (tab) {
                         Tab.TODAY -> "Daily report"
+                        Tab.SPEND -> "Where money goes"
                         Tab.LEDGER -> "All transactions"
                         Tab.SETTINGS -> "Settings"
                     }
@@ -158,6 +198,7 @@ private fun Root() {
                     onTriage = { triaging = true },
                     onImport = { picker.launch(PICKER_TYPES) }
                 )
+                Tab.SPEND -> SpendScreen(vm) { editing = it }
                 Tab.LEDGER -> TxnScreen(vm) { editing = it }
                 Tab.SETTINGS -> SettingsScreen(
                     vm = vm,
