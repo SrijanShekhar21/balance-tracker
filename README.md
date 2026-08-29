@@ -7,8 +7,15 @@ statement cannot be uploaded anywhere, and it reads only the single file you han
 
 **Install:** https://github.com/SrijanShekhar21/balance-tracker/releases/latest/download/BalanceTracker.apk
 
-That link always points at the newest build. Open it on your phone, tap the file, allow the
-unknown-source prompt, install.
+That link always serves the newest build: every push republishes it, so the URL never changes.
+
+**Installing over an existing copy now works.** Builds are signed with a fixed key held in
+repository secrets, and the version number follows the build, which are the two things Android
+requires before it will treat a new APK as an upgrade rather than a different app.
+
+One exception: any copy installed before this change was signed with a throwaway key, so Android
+will refuse to upgrade it. Uninstall once, install this build, and every future update installs
+straight over the top.
 
 ---
 
@@ -113,6 +120,16 @@ it there.
 
 **No report arrived.** Android battery optimisation delays background work. Settings → Apps →
 Balance Tracker → Battery → **Unrestricted**.
+
+---
+
+## The signing key
+
+`signing/` holds the key that every build is signed with, and is deliberately untracked. Keep a
+copy somewhere safe: without it, a future build cannot upgrade an installed app, and the only
+remedy is uninstalling and losing the data. The same key is stored in the repository secrets
+`ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`, which GitHub cannot
+show you again once set.
 
 ---
 
