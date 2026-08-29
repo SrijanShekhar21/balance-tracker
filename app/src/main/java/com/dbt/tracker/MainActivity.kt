@@ -41,7 +41,9 @@ import com.dbt.tracker.data.Txn
 import com.dbt.tracker.ui.AddTxnSheet
 import com.dbt.tracker.ui.AppTheme
 import com.dbt.tracker.ui.AppVm
+import com.dbt.tracker.ui.BalanceDialog
 import com.dbt.tracker.ui.HomeScreen
+import com.dbt.tracker.ui.PasswordDialog
 import com.dbt.tracker.ui.SettingsScreen
 import com.dbt.tracker.ui.TriageScreen
 import com.dbt.tracker.ui.TxnEditSheet
@@ -171,5 +173,11 @@ private fun Root() {
     }
     if (adding) {
         AddTxnSheet(vm = vm, onDismiss = { adding = false })
+    }
+    if (vm.askingPassword) {
+        PasswordDialog(vm = vm, onDismiss = { vm.cancelPassword() })
+    }
+    if (vm.askingBalance) {
+        BalanceDialog(vm = vm, onDismiss = { vm.askingBalance = false })
     }
 }

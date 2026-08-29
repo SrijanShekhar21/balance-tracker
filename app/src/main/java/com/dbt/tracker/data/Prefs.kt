@@ -50,8 +50,24 @@ class Prefs(context: Context) {
         get() = sp.getString("primary_account", "") ?: ""
         set(v) = sp.edit().putString("primary_account", v).apply()
 
-    fun setOpeningBalanceNow(amount: Double) {
+    /**
+     * Password for encrypted statement downloads. Stored in the app's private preferences,
+     * which other apps cannot read. It is kept only so the same file can be opened each month
+     * without retyping, and it unlocks a file you already hold rather than any account.
+     */
+    var statementPassword: String
+        get() = sp.getString("stmt_password", "") ?: ""
+        set(v) = sp.edit().putString("stmt_password", v).apply()
+
+    fun setOpeningBalanceNow(amount: Double) = setOpeningBalanceAt(amount, System.currentTimeMillis())
+
+    /**
+     * Anchors a known balance to a moment in time. Used when a statement has no balance column:
+     * the figure is pinned just after the last imported row, so nothing already counted is
+     * applied to it a second time.
+     */
+    fun setOpeningBalanceAt(amount: Double, ts: Long) {
         openingBalance = amount
-        openingBalanceTs = System.currentTimeMillis()
+        openingBalanceTs = ts
     }
 }

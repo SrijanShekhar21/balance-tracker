@@ -27,12 +27,16 @@ object StatementImporter {
         val closingBalance: Double? = null,
         val account: String = "",
         val warnings: List<String> = emptyList(),
-        val error: String? = null
+        val error: String? = null,
+        /** The file is encrypted and no usable password was supplied. */
+        val needsPassword: Boolean = false,
+        /** The statement had no balance column, so a starting figure must be supplied once. */
+        val needsBalance: Boolean = false
     )
 
     private const val MAX_BYTES = 25 * 1024 * 1024
 
-    fun import(context: Context, uri: Uri): Outcome {
+    fun import(context: Context, uri: Uri, password: String? = null): Outcome {
         val bytes = try {
             context.contentResolver.openInputStream(uri)?.use { readLimited(it) }
                 ?: return Outcome(false, error = "Could not open that file.")
@@ -43,7 +47,13 @@ object StatementImporter {
         if (bytes.isEmpty()) return Outcome(false, error = "That file is empty.")
 
         val parsed = try {
-            decode(bytes)
+            decode(bytes, password)
+        } catch (e: NeedsPassword) {
+            return Outcome(false, needsPassword = true, error = "That file is password protected.")
+        } catch (e: OoxmlDecryptor.WrongPassword) {
+            return Outcome(false, needsPassword = true, error = e.message)
+        } catch (e: OoxmlDecryptor.Unsupported) {
+            return Outcome(false, error = e.message)
         } catch (e: XlsxReader.NotXlsx) {
             return Outcome(false, error = e.message)
         } catch (e: Exception) {
@@ -63,16 +73,17 @@ object StatementImporter {
 
     // ------------------------------------------------------------------ decode
 
+    private class NeedsPassword : Exception()
+
     /** Chooses a reader from the file's leading bytes rather than trusting its extension. */
-    private fun decode(bytes: ByteArray): StatementParser.Result {
+    private fun decode(bytes: ByteArray, password: String?): StatementParser.Result {
         if (startsWith(bytes, 0x50, 0x4B, 0x03, 0x04)) {
             return StatementParser.parseGrid(XlsxReader.read(bytes.inputStream()))
         }
-        if (startsWith(bytes, 0xD0, 0xCF, 0x11, 0xE0)) {
-            throw XlsxReader.NotXlsx(
-                "That is an old-format .xls, or a password-protected workbook. Open it and " +
-                    "re-save as CSV, then import that."
-            )
+        if (OoxmlDecryptor.isEncryptedOfficeFile(bytes)) {
+            if (password.isNullOrBlank()) throw NeedsPassword()
+            val plain = OoxmlDecryptor.decrypt(bytes, password)
+            return StatementParser.parseGrid(XlsxReader.read(plain.inputStream()))
         }
         if (startsWith(bytes, 0x25, 0x50, 0x44, 0x46)) {
             throw XlsxReader.NotXlsx(
@@ -157,6 +168,7 @@ object StatementImporter {
 
         return Outcome(
             ok = true,
+            needsBalance = txns.none { it.balanceAfter != null },
             imported = imported,
             replaced = replaced,
             fromTs = from,

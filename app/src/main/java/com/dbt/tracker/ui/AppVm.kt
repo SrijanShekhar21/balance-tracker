@@ -67,6 +67,16 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     /** Result of the most recent import, kept so warnings stay on screen to be read. */
     var lastImport by mutableStateOf<StatementImporter.Outcome?>(null)
 
+    /** Set while waiting for the user to supply a password for [pendingUri]. */
+    var askingPassword by mutableStateOf(false)
+    var passwordFailed by mutableStateOf(false)
+        private set
+    private var pendingUri: Uri? = null
+
+    /** Set when an imported statement had no balance column and none is on record. */
+    var askingBalance by mutableStateOf(false)
+    private var balanceAnchorTs = 0L
+
     private data class Loaded(
         val report: DayReport,
         val txns: List<Txn>,
@@ -104,15 +114,29 @@ class AppVm(app: Application) : AndroidViewModel(app) {
      * Reads a statement the user picked. Overlapping periods are replaced rather than added to,
      * so importing the current month repeatedly through the month is the intended way to use it.
      */
-    fun importStatement(uri: Uri) {
+    fun importStatement(uri: Uri, password: String? = null) {
         if (busy) return
         busy = true
+        pendingUri = uri
+        // A remembered password is tried first, so an encrypted file usually imports in one tap.
+        val pw = password ?: prefs.statementPassword.takeIf { it.isNotBlank() }
+
         viewModelScope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                StatementImporter.import(getApplication(), uri)
+                StatementImporter.import(getApplication(), uri, pw)
             }
             busy = false
             lastImport = outcome
+
+            if (outcome.needsPassword) {
+                // Distinguish "we have not asked yet" from "the saved one is wrong".
+                passwordFailed = pw != null
+                askingPassword = true
+                return@launch
+            }
+
+            askingPassword = false
+            pendingUri = null
             message = when {
                 !outcome.ok -> outcome.error ?: "Could not import that file"
                 outcome.replaced > 0 ->
@@ -123,10 +147,35 @@ class AppVm(app: Application) : AndroidViewModel(app) {
                 // Jump to the newest day the statement covers, so the screen is not blank when
                 // the statement ends before today.
                 viewDay = minOf(Days.startOfDay(outcome.toTs), Days.todayStart())
+                if (outcome.needsBalance) {
+                    balanceAnchorTs = outcome.toTs + 1000L
+                    askingBalance = repo.currentBalance(prefs) == null
+                }
             }
             refresh()
         }
     }
+
+    fun submitPassword(password: String, remember: Boolean) {
+        if (remember) prefs.statementPassword = password
+        askingPassword = false
+        pendingUri?.let { importStatement(it, password) }
+    }
+
+    fun cancelPassword() {
+        askingPassword = false
+        pendingUri = null
+    }
+
+    /** Records the balance as at the end of the imported statement. */
+    fun submitBalance(amount: Double) {
+        prefs.setOpeningBalanceAt(amount, balanceAnchorTs)
+        askingBalance = false
+        message = "Balance recorded"
+        refresh()
+    }
+
+    val savedPassword: String get() = prefs.statementPassword
 
     // ------------------------------------------------------------------ triage
 

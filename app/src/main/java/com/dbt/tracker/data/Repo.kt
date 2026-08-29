@@ -274,7 +274,7 @@ class Repo(context: Context) {
         val delta = one(
             """
             SELECT SUM(CASE WHEN is_credit = 1 THEN amount ELSE -amount END)
-            FROM txn WHERE ts >= ?
+            FROM txn WHERE ts > ?
             """.trimIndent(),
             arrayOf(prefs.openingBalanceTs.toString())
         ) { if (it.isNull(0)) 0.0 else it.getDouble(0) } ?: 0.0
