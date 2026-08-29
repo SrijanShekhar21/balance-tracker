@@ -102,7 +102,7 @@ private fun Root() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        vm.refresh()
+        vm.start()
     }
 
     vm.message?.let { text ->

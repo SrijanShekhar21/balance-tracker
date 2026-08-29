@@ -96,8 +96,15 @@ data class DayReport(
     val daysElapsedInMonth: Int,
     val daysInMonth: Int,
     val flags: List<Flag>,
-    val txns: List<Txn>
+    val txns: List<Txn>,
+    /** Daily spend for the 30 days ending on this report's day. */
+    val trend: List<DayPoint> = emptyList(),
+    /** Daily spend for each elapsed day of this month, for the cumulative view. */
+    val monthSeries: List<DayPoint> = emptyList()
 )
+
+/** One day on the spend timeline. Days with no spending are present with zero. */
+data class DayPoint(val dayStart: Long, val spent: Double)
 
 data class CategorySlice(val category: String, val amount: Double, val count: Int, val share: Double)
 

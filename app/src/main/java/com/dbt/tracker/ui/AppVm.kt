@@ -86,6 +86,19 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         val covered: Long?
     )
 
+    /**
+     * First load. Opens on the most recent day the data actually covers rather than on today,
+     * because a statement usually ends a day or two back and landing on an empty screen reads
+     * as though nothing was imported.
+     */
+    fun start() {
+        viewModelScope.launch {
+            val covered = withContext(Dispatchers.IO) { repo.lastStatementDay() }
+            if (covered != null) viewDay = minOf(Days.startOfDay(covered), Days.todayStart())
+            refresh()
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch {
             val data = withContext(Dispatchers.IO) {

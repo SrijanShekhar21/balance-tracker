@@ -3,6 +3,7 @@ package com.dbt.tracker.report
 import android.content.Context
 import com.dbt.tracker.data.Categories
 import com.dbt.tracker.data.CategorySlice
+import com.dbt.tracker.data.DayPoint
 import com.dbt.tracker.data.DayReport
 import com.dbt.tracker.data.Flag
 import com.dbt.tracker.data.MerchantSlice
@@ -24,6 +25,29 @@ object ReportEngine {
 
     /** Below this, day-to-day noise is not worth flagging. */
     private const val NOISE_FLOOR = 200.0
+
+    /** Window for the spend trend chart. */
+    private const val TREND_DAYS = 30
+
+    /**
+     * Daily spend across [days] consecutive days from [from].
+     *
+     * Days with nothing spent are emitted as zero rather than omitted, so the line plots against
+     * real elapsed time. Dropping them would compress quiet stretches and make spending look
+     * steadier than it is.
+     */
+    private fun series(repo: Repo, from: Long, days: Int): List<DayPoint> {
+        if (days <= 0) return emptyList()
+        val to = Days.plusDays(from, days)
+        val byDay = repo.between(from, to)
+            .filter { !it.isCredit }
+            .groupBy { Days.startOfDay(it.ts) }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+        return (0 until days).map { i ->
+            val d = Days.plusDays(from, i)
+            DayPoint(d, byDay[d] ?: 0.0)
+        }
+    }
 
     fun build(context: Context, dayStart: Long = Days.todayStart()): DayReport {
         val repo = Repo(context)
@@ -99,7 +123,9 @@ object ReportEngine {
             daysElapsedInMonth = daysElapsed,
             daysInMonth = daysInMonth,
             flags = emptyList(),
-            txns = today
+            txns = today,
+            trend = series(repo, Days.plusDays(dayStart, -TREND_DAYS + 1), TREND_DAYS),
+            monthSeries = series(repo, monthStart, daysElapsed)
         )
 
         return report.copy(flags = detectFlags(repo, prefs, report, debits, dayStart))

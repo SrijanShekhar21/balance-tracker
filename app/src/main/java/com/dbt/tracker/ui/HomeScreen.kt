@@ -68,6 +68,26 @@ fun HomeScreen(
         item { FlowCard(r) }
         item { PaceCard(r) }
 
+        item {
+            Panel("Spend over time", trailing = "last 30 days") {
+                SpendTrendChart(points = r.trend, average = r.avg30)
+            }
+        }
+
+        item {
+            Panel(
+                "This month so far",
+                trailing = "day ${r.daysElapsedInMonth} of ${r.daysInMonth}"
+            ) {
+                MonthPaceChart(
+                    monthSeries = r.monthSeries,
+                    daysInMonth = r.daysInMonth,
+                    projectedTotal = r.projectedMonthEnd,
+                    budget = r.monthlyBudget
+                )
+            }
+        }
+
         if (r.byCategory.isNotEmpty()) {
             item {
                 Panel("Where it went", trailing = "${r.txnCount} txns") {
@@ -195,6 +215,19 @@ private fun DayNavigator(vm: AppVm) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Next day")
         }
     }
+
+    // Without this, a day beyond the statement looks like a zero-spend day rather than a
+    // day nothing is known about.
+    vm.coveredUntil?.let { covered ->
+        if (vm.viewDay > covered) {
+            Text(
+                "Your statement ends ${Days.label(covered)}. Nothing is known after that.",
+                style = MaterialTheme.typography.bodySmall,
+                color = warnColor(),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -260,9 +293,10 @@ private fun FlowCard(r: DayReport) {
 /** Today measured against the user's own habit, which is the only baseline that means anything. */
 @Composable
 private fun PaceCard(r: DayReport) {
-    Panel("Today vs your average") {
+    val dayName = Days.label(r.dayStart)
+    Panel("$dayName vs your average") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("Today", Money.rupees(r.spent), Modifier.weight(1f))
+            Stat(dayName, Money.rupees(r.spent), Modifier.weight(1f))
             Stat("7-day avg", Money.rupees(r.avg7), Modifier.weight(1f))
             Stat("30-day avg", Money.rupees(r.avg30), Modifier.weight(1f))
         }
@@ -284,17 +318,17 @@ private fun PaceCard(r: DayReport) {
                 }
             )
             Spacer(Modifier.height(8.dp))
-            ComparisonBar(today = r.spent, average = r.avg30)
+            ComparisonBar(today = r.spent, average = r.avg30, todayLabel = dayName)
         }
     }
 }
 
 /** Two stacked bars sharing a scale: today's spend read against the 30-day norm. */
 @Composable
-private fun ComparisonBar(today: Double, average: Double) {
+private fun ComparisonBar(today: Double, average: Double, todayLabel: String) {
     val max = maxOf(today, average, 1.0)
     Column {
-        BarLine("Today", today / max, MaterialTheme.colorScheme.primary)
+        BarLine(todayLabel, today / max, MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(6.dp))
         BarLine("Average", average / max, MaterialTheme.colorScheme.outline)
     }
