@@ -21,9 +21,8 @@ straight over the top.
 
 ## Using it
 
-1. **SBI net banking → Account Statement → pick the date range → download as CSV.**
-   Use net banking rather than the emailed e-statement: the net banking download is not password
-   protected, and CSV parses exactly rather than approximately.
+1. **SBI net banking → Account Statement → pick the date range → download.** CSV or Excel both
+   work, and a password on the file is fine — the app asks for it once and remembers it.
 2. In the app: **Settings → Import a statement**, and pick the file.
 3. That is the whole loop. Re-download and re-import whenever you want the numbers refreshed.
 
@@ -37,14 +36,16 @@ duplicating it. Cash you entered by hand is never touched by an import.
 |---|---|
 | `.csv` | Yes — best option |
 | Tab-separated `.txt`, and SBI's `.xls` that is really text | Yes |
-| Real `.xlsx` | Yes, if not password protected |
-| Password-protected workbook | No — open it and re-save as CSV |
-| `.pdf` | No — download the CSV version instead |
+| Real `.xlsx` | Yes |
+| Password-protected `.xlsx` | Yes — enter the password once and tick *Remember it* |
+| Old `.xls`, or a protected file in that format | No — open it and re-save as CSV |
+| `.pdf` | No — download the CSV or Excel version instead |
 
-Password-protected Excel is refused deliberately rather than half-supported. Decrypting it needs
-either Apache POI, which adds ~15 MB and misbehaves on Android, or hand-written AES key
-derivation — untested crypto inside the thing you wanted to be reliable. Re-saving as CSV takes
-ten seconds and removes the whole problem.
+A protected workbook is decrypted in the app. It is not a zip but a Compound File Binary
+container holding an AES-encrypted one, and since Android already provides AES and SHA-512 this
+needs no library, where Apache POI would have added roughly 15 MB. The scheme carries its own
+verifier hash, which is checked before anything is decrypted, so a wrong password is reported as
+one rather than producing noise.
 
 The importer does not hard-code SBI's layout. It finds the header row, maps columns by name, and
 reads what follows — so it also works on statements from other banks.
@@ -53,8 +54,10 @@ reads what follows — so it also works on statements from other banks.
 
 ## What the report shows
 
-**Balance** — read straight from the statement's closing balance column. Not inferred, not
-accumulated, so it cannot drift. Plus runway: how many days it lasts at your recent burn rate.
+**Balance** — read straight from the statement's closing balance column where the statement has
+one. SBI's does not, so the app asks for your balance once and works forward; that stays exact,
+because a statement is complete for its period and has nothing missing to accumulate error.
+Alongside it, runway: how many days the balance lasts at your recent burn rate.
 
 **Cash flow** — spent, received, net, transaction count, largest single payment.
 
