@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Ascending bars + trend line, kept inside the 72dp adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M34,60 h9 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M49,50 h9 a2,2 0 0 1 2,2 v24 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-24 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M64,40 h9 a2,2 0 0 1 2,2 v34 a2,2 0 0 1 -2,2 h-9 a2,2 0 0 1 -2,-2 v-34 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:strokeColor="#FF99F6E4"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M33,44 L47,34 L61,39 L77,26" />
+</vector>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dbt_bg">#FF0B1120</color>
+    <style name="Theme.DBT" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dbt_bg</item>
+        <item name="android:statusBarColor">@color/dbt_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
