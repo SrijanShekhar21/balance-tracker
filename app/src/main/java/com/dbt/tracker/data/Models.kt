@@ -25,6 +25,26 @@ data class Txn(
     val signed: Double get() = if (isCredit) amount else -amount
 }
 
+/** One account the app has seen in your messages, and how much it knows about it. */
+data class AccountStat(
+    val account: String,
+    val channel: String,
+    val txnCount: Int,
+    val balanceSightings: Int
+)
+
+/** The workings behind the balance figure, surfaced so a wrong number can be explained. */
+data class BalanceDiag(
+    val primaryAccount: String,
+    val accountExplicitlyChosen: Boolean,
+    val anchorTs: Long?,
+    val anchorBalance: Double?,
+    val anchorAccount: String?,
+    val txnsSinceAnchor: Int,
+    val netSinceAnchor: Double,
+    val accounts: List<AccountStat>
+)
+
 /** A non-monetary SMS that dates an activity: a ride starting, an order being placed. */
 data class Signal(
     val ts: Long,
@@ -36,6 +56,7 @@ data class Signal(
 object Channel {
     const val UPI = "UPI"
     const val CARD = "Card"
+    const val CREDIT_CARD = "Credit Card"
     const val ATM = "ATM"
     const val BANK = "Bank Transfer"
     const val CASH = "Cash"

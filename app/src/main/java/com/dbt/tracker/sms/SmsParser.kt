@@ -157,6 +157,8 @@ object SmsParser {
 
         val isCredit = dirWord.lowercase(Locale.ROOT) in CREDIT_WORDS
         val channel = detectChannel(lower)
+        // Never anchor the bank balance to a card's available limit.
+        val usableBalance = if (channel == Channel.CREDIT_CARD) null else balance
         val merchant = extractMerchant(work, channel, isCredit)
 
         return ParsedSms(
@@ -164,7 +166,7 @@ object SmsParser {
             isCredit = isCredit,
             merchant = merchant,
             account = account,
-            balanceAfter = balance,
+            balanceAfter = usableBalance,
             refNo = refNo,
             channel = channel,
             ts = resolveTimestamp(text, receivedAt)
@@ -207,7 +209,17 @@ object SmsParser {
     private fun toAmount(s: String): Double? =
         s.replace(",", "").trim().toDoubleOrNull()
 
+    /**
+     * A credit card statement quotes an available *limit*, which is not money you hold.
+     * Detecting these keeps card spending in the report while keeping it out of the balance.
+     */
+    private fun isCreditCard(lower: String): Boolean = listOf(
+        "credit card", "sbi card", "card ending", "cc ending", "avl limit",
+        "available limit", "credit limit"
+    ).any { lower.contains(it) }
+
     private fun detectChannel(lower: String): String = when {
+        isCreditCard(lower) -> Channel.CREDIT_CARD
         lower.contains("atm") || lower.contains("withdrawn") || lower.contains("cash wdl") -> Channel.ATM
         lower.contains("upi") || lower.contains("vpa") || lower.contains("@") -> Channel.UPI
         lower.contains("card") || lower.contains("pos ") || lower.contains("swipe") -> Channel.CARD

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dbt.tracker.data.BalanceDiag
 import com.dbt.tracker.data.Categories
 import com.dbt.tracker.data.Channel
 import com.dbt.tracker.data.DayReport
@@ -58,12 +59,15 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         private set
     var selected by mutableStateOf<Set<Long>>(emptySet())
         private set
+    var diagnostics by mutableStateOf<BalanceDiag?>(null)
+        private set
 
     private data class Loaded(
         val report: DayReport,
         val txns: List<Txn>,
         val count: Int,
-        val triage: List<Txn>
+        val triage: List<Txn>,
+        val diag: BalanceDiag
     )
 
     fun refresh() {
@@ -73,13 +77,15 @@ class AppVm(app: Application) : AndroidViewModel(app) {
                     report = ReportEngine.build(getApplication(), viewDay),
                     txns = repo.recent(500),
                     count = repo.count(),
-                    triage = repo.needsTriage(Days.plusDays(Days.todayStart(), -TRIAGE_WINDOW_DAYS))
+                    triage = repo.needsTriage(Days.plusDays(Days.todayStart(), -TRIAGE_WINDOW_DAYS)),
+                    diag = repo.balanceDiagnostics(prefs)
                 )
             }
             report = data.report
             allTxns = data.txns
             txnCount = data.count
             triage = data.triage
+            diagnostics = data.diag
             // Drop ticks for anything that has since been categorised elsewhere.
             selected = selected intersect data.triage.map { it.id }.toSet()
         }
@@ -136,6 +142,31 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             message = if (added > 0) "Imported $added new transactions" else "No new transactions found"
             refresh()
         }
+    }
+
+    /**
+     * Deletes everything and re-reads the inbox. This is the only way a parsing fix reaches
+     * transactions that were already stored, so it is what repairs a wrong balance.
+     */
+    fun rebuild() {
+        if (busy) return
+        busy = true
+        viewModelScope.launch {
+            val added = withContext(Dispatchers.IO) {
+                repo.clearTransactions()
+                Ingest.backfill(getApplication(), prefs.backfillDays)
+            }
+            busy = false
+            message = "Rebuilt from ${'$'}added messages"
+            refresh()
+        }
+    }
+
+    fun setPrimaryAccount(account: String) {
+        prefs.primaryAccount = account
+        message = if (account.isBlank()) "Tracking whichever account is most active"
+                  else "Balance now tracks account ${'$'}account"
+        refresh()
     }
 
     fun setCategory(txn: Txn, category: String, remember: Boolean) {

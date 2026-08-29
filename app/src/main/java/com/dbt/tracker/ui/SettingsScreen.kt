@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.dbt.tracker.util.Days
 import com.dbt.tracker.util.Money
 
 @Composable
@@ -165,6 +166,79 @@ fun SettingsScreen(
         }
 
         item {
+            val d = vm.diagnostics
+            Panel("Balance workings", trailing = "why this number") {
+                if (d == null || d.anchorBalance == null) {
+                    Text(
+                        "No balance has been read from your messages yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    DiagLine("Bank last said", Money.rupees(d.anchorBalance, decimals = true))
+                    DiagLine("On", Days.label(d.anchorTs ?: 0L) + " " + Days.time(d.anchorTs ?: 0L))
+                    DiagLine("For account", "ending " + d.anchorAccount.orEmpty().ifBlank { "unknown" })
+                    DiagLine("Since then", "${d.txnsSinceAnchor} txns, ${Money.signed(d.netSinceAnchor)}")
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "If the bank figure above is wrong or belongs to the wrong account, " +
+                            "pick the right account below. If it is right but the total is not, " +
+                            "the transactions since then are being miscounted — rebuild.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (d != null && d.accounts.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("Accounts seen", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(6.dp))
+                    d.accounts.forEach { a ->
+                        val isPrimary = a.account == d.primaryAccount
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "ending ${a.account}" + if (isPrimary) "  • tracked" else "",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isPrimary) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "${a.channel} · ${a.txnCount} txns · ${a.balanceSightings} with a balance",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (!isPrimary) {
+                                OutlinedButton(onClick = { vm.setPrimaryAccount(a.account) }) {
+                                    Text("Track")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                OutlinedButton(
+                    onClick = { vm.rebuild() },
+                    enabled = !vm.busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (vm.busy) "Rebuilding..." else "Delete all and re-read my SMS") }
+                Text(
+                    "Parsing fixes only apply to messages read after the fix. A rebuild replays " +
+                        "your whole inbox through the current logic. Your category corrections " +
+                        "are kept.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        }
+
+        item {
             Panel("Balance") {
                 Text(
                     "Your balance comes from the figure SBI stamps on its alerts. Until one " +
@@ -240,6 +314,21 @@ fun SettingsScreen(
         }
 
         item { Spacer(Modifier.height(64.dp)) }
+    }
+}
+
+@Composable
+private fun DiagLine(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(value, style = MaterialTheme.typography.bodySmall)
     }
 }
 

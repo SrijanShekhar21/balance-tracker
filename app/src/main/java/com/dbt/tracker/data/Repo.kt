@@ -13,10 +13,9 @@ class Repo(context: Context) {
     /**
      * Inserts a transaction unless it is already recorded.
      *
-     * Two guards run. Transactions carrying a bank reference number rely on the UNIQUE
-     * index over [Txn.refNo]. Those without one (some card and ATM alerts omit it) are
-     * checked against a two-minute window on the same amount, direction and merchant,
-     * which is what a duplicate SMS delivery looks like.
+     * Two guards run. A UNIQUE index over the bank reference number catches the same message
+     * being read twice, and [isLikelyDuplicate] catches the same payment being described twice
+     * by different senders, which the reference number cannot.
      *
      * @return true if a new row was written.
      */
@@ -24,7 +23,11 @@ class Repo(context: Context) {
         val key = txn.refNo?.takeIf { it.isNotBlank() }
             ?.let { "${if (txn.isCredit) "C" else "D"}:$it:${"%.2f".format(txn.amount)}" }
 
-        if (key == null && isLikelyDuplicate(txn)) return false
+        // Runs even when a reference number is present. One UPI payment is announced by both
+        // the bank and the wallet app, and the two messages carry different reference numbers
+        // and different payee names -- so the reference index alone cannot catch the copy, and
+        // every such payment would otherwise be counted twice.
+        if (txn.source == Source.SMS && isLikelyDuplicate(txn)) return false
 
         val values = ContentValues().apply {
             put("ts", txn.ts)
@@ -49,19 +52,42 @@ class Repo(context: Context) {
         return id != -1L
     }
 
+    /**
+     * Treats the same amount moving the same way within three minutes as one transaction.
+     *
+     * Merchant and reference number are deliberately not compared. Two descriptions of a single
+     * payment rarely agree on either, so matching on them is what allowed duplicates through.
+     * The cost of this looseness is that two genuinely separate payments of an identical amount
+     * within three minutes collapse into one; the benefit is that the balance stops drifting
+     * downwards, which is the far more common and more damaging error.
+     *
+     * Manually entered cash is exempt, so it can be recorded alongside a similar card payment.
+     */
     private fun isLikelyDuplicate(txn: Txn): Boolean {
         db.readableDatabase.rawQuery(
             """
             SELECT COUNT(*) FROM txn
-            WHERE amount = ? AND is_credit = ? AND merchant = ? AND ABS(ts - ?) <= 120000
+            WHERE amount = ? AND is_credit = ? AND source = ? AND ABS(ts - ?) <= 180000
             """.trimIndent(),
             arrayOf(
                 txn.amount.toString(),
                 (if (txn.isCredit) 1 else 0).toString(),
-                txn.merchant,
+                Source.SMS,
                 txn.ts.toString()
             )
         ).use { c -> return c.moveToFirst() && c.getInt(0) > 0 }
+    }
+
+    /**
+     * Wipes recorded transactions so they can be re-read from the inbox.
+     *
+     * Learned merchant rules survive, since they represent decisions the user made rather than
+     * data derived from messages. Needed after a parsing fix, because corrections only affect
+     * what is read next -- rows already stored keep whatever the old logic concluded.
+     */
+    fun clearTransactions() {
+        db.writableDatabase.execSQL("DELETE FROM txn")
+        db.writableDatabase.execSQL("DELETE FROM signal")
     }
 
     fun delete(id: Long) {
@@ -208,9 +234,16 @@ class Repo(context: Context) {
      * @return balance paired with whether it had to be derived rather than read from the bank.
      */
     fun currentBalance(prefs: Prefs): Pair<Double, Boolean>? {
+        val account = primaryAccount(prefs)
+
         val anchor = one(
-            "SELECT ts, id, balance_after FROM txn WHERE balance_after IS NOT NULL ORDER BY ts DESC, id DESC LIMIT 1",
-            emptyArray()
+            """
+            SELECT ts, id, balance_after FROM txn
+            WHERE balance_after IS NOT NULL AND channel <> ?
+              AND (? = '' OR account = ?)
+            ORDER BY ts DESC, id DESC LIMIT 1
+            """.trimIndent(),
+            arrayOf(Channel.CREDIT_CARD, account, account)
         ) { Triple(it.getLong(0), it.getLong(1), it.getDouble(2)) }
 
         if (anchor != null) {
@@ -218,9 +251,15 @@ class Repo(context: Context) {
             val delta = one(
                 """
                 SELECT SUM(CASE WHEN is_credit = 1 THEN amount ELSE -amount END)
-                FROM txn WHERE ts > ? OR (ts = ? AND id > ?)
+                FROM txn
+                WHERE (ts > ? OR (ts = ? AND id > ?))
+                  AND channel <> ?
+                  AND (? = '' OR account = ? OR account = '')
                 """.trimIndent(),
-                arrayOf(ts.toString(), ts.toString(), id.toString())
+                arrayOf(
+                    ts.toString(), ts.toString(), id.toString(),
+                    Channel.CREDIT_CARD, account, account
+                )
             ) { if (it.isNull(0)) 0.0 else it.getDouble(0) } ?: 0.0
             // Estimated only when transactions have landed since the bank last told us.
             return (bal + delta) to (delta != 0.0)
@@ -235,6 +274,76 @@ class Repo(context: Context) {
             arrayOf(prefs.openingBalanceTs.toString())
         ) { if (it.isNull(0)) 0.0 else it.getDouble(0) } ?: 0.0
         return (opening + delta) to true
+    }
+
+    /**
+     * The account the balance should follow: the user's choice, or failing that whichever
+     * account appears in the most transactions. Returns blank when no account is identifiable,
+     * in which case the balance queries fall back to considering everything.
+     */
+    fun primaryAccount(prefs: Prefs): String {
+        prefs.primaryAccount.takeIf { it.isNotBlank() }?.let { return it }
+        return one(
+            """
+            SELECT account FROM txn
+            WHERE account <> '' AND channel <> ?
+            GROUP BY account ORDER BY COUNT(*) DESC LIMIT 1
+            """.trimIndent(),
+            arrayOf(Channel.CREDIT_CARD)
+        ) { it.getString(0) } ?: ""
+    }
+
+    /** Every account the app has seen, so the user can confirm it is tracking the right one. */
+    fun accountsSeen(): List<AccountStat> {
+        val out = ArrayList<AccountStat>()
+        db.readableDatabase.rawQuery(
+            """
+            SELECT account, channel, COUNT(*),
+                   SUM(CASE WHEN balance_after IS NOT NULL THEN 1 ELSE 0 END)
+            FROM txn WHERE account <> ''
+            GROUP BY account, channel ORDER BY COUNT(*) DESC
+            """.trimIndent(),
+            emptyArray()
+        ).use { c ->
+            while (c.moveToNext()) {
+                out.add(AccountStat(c.getString(0), c.getString(1), c.getInt(2), c.getInt(3)))
+            }
+        }
+        return out
+    }
+
+    /** Everything behind the balance figure, so a wrong number can be explained rather than guessed at. */
+    fun balanceDiagnostics(prefs: Prefs): BalanceDiag {
+        val account = primaryAccount(prefs)
+        val anchor = one(
+            """
+            SELECT ts, balance_after, account FROM txn
+            WHERE balance_after IS NOT NULL AND channel <> ?
+              AND (? = '' OR account = ?)
+            ORDER BY ts DESC, id DESC LIMIT 1
+            """.trimIndent(),
+            arrayOf(Channel.CREDIT_CARD, account, account)
+        ) { Triple(it.getLong(0), it.getDouble(1), it.getString(2) ?: "") }
+
+        val since = anchor?.first ?: 0L
+        val counted = one(
+            """
+            SELECT COUNT(*), SUM(CASE WHEN is_credit = 1 THEN amount ELSE -amount END)
+            FROM txn WHERE ts > ? AND channel <> ? AND (? = '' OR account = ? OR account = '')
+            """.trimIndent(),
+            arrayOf(since.toString(), Channel.CREDIT_CARD, account, account)
+        ) { it.getInt(0) to (if (it.isNull(1)) 0.0 else it.getDouble(1)) } ?: (0 to 0.0)
+
+        return BalanceDiag(
+            primaryAccount = account,
+            accountExplicitlyChosen = prefs.primaryAccount.isNotBlank(),
+            anchorTs = anchor?.first,
+            anchorBalance = anchor?.second,
+            anchorAccount = anchor?.third,
+            txnsSinceAnchor = counted.first,
+            netSinceAnchor = counted.second,
+            accounts = accountsSeen()
+        )
     }
 
     // ---------------------------------------------------------------- plumbing

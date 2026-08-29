@@ -50,15 +50,26 @@ class Prefs(context: Context) {
         get() = sp.getInt("backfill_days", 120)
         set(v) = sp.edit().putInt("backfill_days", v).apply()
 
-    /** Also parse alerts from non-SBI senders (wallets, other banks). */
+    /**
+     * Also parse alerts from wallets and other banks.
+     *
+     * Off by default. Every UPI payment is already reported by the bank, so wallet messages
+     * add no new transactions -- only second copies of ones already recorded, under a
+     * different reference number and payee name.
+     */
     var includeAllSenders: Boolean
-        get() = sp.getBoolean("all_senders", true)
+        get() = sp.getBoolean("all_senders", false)
         set(v) = sp.edit().putBoolean("all_senders", v).apply()
 
     /** Notify on every transaction as it lands, not just the nightly summary. */
     var liveAlerts: Boolean
         get() = sp.getBoolean("live_alerts", false)
         set(v) = sp.edit().putBoolean("live_alerts", v).apply()
+
+    /** Last four digits of the account the balance should track. Blank means auto-detect. */
+    var primaryAccount: String
+        get() = sp.getString("primary_account", "") ?: ""
+        set(v) = sp.edit().putString("primary_account", v).apply()
 
     fun setOpeningBalanceNow(amount: Double) {
         openingBalance = amount
